@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load django_tables2 %}
+
+{% load static %}
+
+{% block styles %}
+{% endblock styles %}
+
+{% block body %}
+
+{#    <div class="row">#}
+{#        <div class="col-12">#}
+{#            {% include 'components/filter.html' %}#}
+{#        </div>#}
+{#    </div>#}
+
+
+    <div class="row">
+    {% block content %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        {% if table.rows %}
+                            <div class="table-responsive">
+                                {% render_table table %}
+                            </div>
+                        {% else %}
+                            <div class="col-12">
+                                {% include 'components/empty.html' %}
+                            </div>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endblock content %}
+
+    </div>
+
+
+{% endblock body %}
+{% block scripts %}
+
+{% endblock %}

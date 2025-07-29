@@ -1,0 +1,8 @@
+{% for but in buttons %}
+    <{% if not but.html %}a href="{{ but.url|default:"#" }}"{% else %}button{% endif %} {{ but.attrs|default:'' }} class="btn py-1 {{ but.color|default:'btn-primary' }} h6 px-3 btn-icon">
+        {% if not but.html %}<i class="m-0 align-middle {{ but.icon|default:"bi bi-plus" }} {% if but.label %}me-1{% endif %}"></i>{% endif %}
+        {% if but.label %}
+            <span>{{ but.label|default:"إضافة" }}</span>
+        {% endif %}
+    </{% if not but.html %}a{% else %}button{% endif %} >
+{% endfor %}

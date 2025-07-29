@@ -1,0 +1,49 @@
+<div class="d-flex flex-column flex-sm-row justify-content-between align-items-center d-print-none mb-4">
+    {% if bar %}
+        <div class="pagetitle mb-0 d-flex flex-grow-1">
+            <h3 class="text-truncate mb-4 mb-sm-0">
+                {% if not bar.main %}
+                    {% if bar.back %}<a href="{{ bar.back }}">{% endif %}
+                <i role="button" {% if not bar.back %} onclick="window.history.go(-1); return false;" {% endif %}
+                   class="d-print-none align-middle bx bx-chevron-right fs-1 {% if bar.title %}me-1 ms-0{% endif %}"></i>
+                {% if bar.back %}</a>{% endif %}
+                {% endif %}
+
+                {% if bar.title %}
+                    {{ bar.title|truncatewords:'8' }}
+                {% endif %}
+
+            </h3>
+            <nav class="ms-3">
+                {% if bar.breadcrumb %}
+                    <ol class="breadcrumb mt-2 me-3">
+                        {% for item in bar.breadcrumb %}
+                            <li class="breadcrumb-item"><a href="{{ item.link }}">{{ item.text }}</a></li>
+                        {% endfor %}
+                    </ol>
+                {% endif %}
+                {% if bar.count %}
+                    <ol class="breadcrumb mt-2">
+                        <li class="breadcrumb-item">
+                            <span class="fw-semibold text-muted">
+                            {% if request.GET %}
+                                {% if request.GET|length > 1 or not request.GET.page %}
+                                    <span class="fw-normal pe-2">نتائج البحث: </span>
+                                {% endif %}
+                            {% endif %}
+                            ( {{ bar.count.total }} {{ bar.count.label|default:"عنصر" }} )</span>
+                        </li>
+                    </ol>
+                {% endif %}
+            </nav>
+
+        </div>
+        <div class="pageheader-btn">
+            {% if bar.buttons %}
+                {% include 'components/buttons.html' with buttons=bar.buttons %}
+            {% endif %}
+
+        </div>
+
+    {% endif %}
+</div>

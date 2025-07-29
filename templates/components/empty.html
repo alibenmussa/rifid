@@ -1,0 +1,12 @@
+{% load static %}
+<div class="bg-light bg-soft rounded-3 p-3 text-center">
+    <h6 class="fw-light my-3 text-center text-primary">
+        <!--- check if there is empty_text in table --->
+        {% if table.empty_text %}
+            {{ table.empty_text }}
+        {% else %}
+            {{ message|default:"لا يوجد نتائج" }}
+        {% endif %}
+    </h6>
+
+</div>
