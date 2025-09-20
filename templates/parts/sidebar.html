@@ -65,7 +65,7 @@
 
                     <ul class="submenu ">
                         <li class="submenu-item  ">
-                            <a href="#" class="submenu-link">عرض الطلاب</a>
+                            <a href="{% url 'dashboard:students_list' %}" class="submenu-link">عرض الطلاب</a>
                         </li>
                         <li class="submenu-item  ">
                             <a href="#" class="submenu-link">الحضور والانصراف</a>
@@ -82,6 +82,33 @@
                     <ul class="submenu ">
                         <li class="submenu-item  ">
                             <a href="#" class="submenu-link">عرض الأساتذة</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sidebar-item  has-sub">
+                    <a href="#" class='sidebar-link'>
+                        <i class="bi bi-person"></i>
+                        <span>أولياء الأمور</span>
+                    </a>
+
+                    <ul class="submenu ">
+                        <li class="submenu-item  ">
+                            <a href="{% url 'dashboard:guardian_list' %}" class="submenu-link">عرض أولياء الأمور</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sidebar-item  has-sub">
+                    <a href="#" class='sidebar-link'>
+                        <i class="bi bi-person"></i>
+                        <span>الاستبيانات</span>
+                    </a>
+
+                    <ul class="submenu ">
+                        <li class="submenu-item  ">
+                            <a href="{% url 'dashboard:template_list' %}" class="submenu-link">عرض الاستبيانات</a>
+                        </li>
+                        <li class="submenu-item  ">
+                            <a href="#" class="submenu-link">عرض النتائج</a>
                         </li>
                     </ul>
                 </li>

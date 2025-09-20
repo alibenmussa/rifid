@@ -14,8 +14,10 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
 from django.shortcuts import redirect
+from django.conf.urls.static import static
 from django.urls import path, include
 
 urlpatterns = [
@@ -23,4 +25,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("dashboard/", include("core.urls"), name="dashboard"),
     path("accounts/", include("accounts.urls"), name="accounts"),
+    # path("surveys/", include("survey.urls"), name="surveys"),
+    path("api/", include("api.urls"), name="api"),
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

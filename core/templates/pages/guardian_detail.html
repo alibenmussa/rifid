@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load django_tables2 %}
+
+{% load qr_code %}
+
+{% block body %}
+  <div class="container mt-5">
+    <div class="row">
+      <!-- Guardian Information Card (col-md-4) -->
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header bg-primary text-white pt-3 pb-2">
+            <h4 class="text-white">تفاصيل ولي الأمر</h4>
+          </div>
+          <div class="card-body pt-4">
+            <div class="mb-3">
+              <strong class="text-primary">الاسم:</strong>
+              <span>{{ guardian.first_name|default:'-' }} {{ guardian.last_name|default:'-' }}</span>
+            </div>
+            <div class="mb-3">
+              <strong class="text-primary">رقم الهاتف:</strong>
+              <span>{{ guardian.phone|default:'-' }}</span>
+            </div>
+            <div class="mb-3">
+              <strong class="text-primary">البريد الإلكتروني:</strong>
+              <span>{{ guardian.email|default:'-' }}</span>
+            </div>
+            <div class="mb-3">
+              <strong class="text-primary">الرقم الوطني:</strong>
+              <span>{{ guardian.nid|default:'-' }}</span>
+            </div>
+            <div class="mb-3">
+              <strong class="text-primary">عنوان السكن:</strong>
+              <span>{{ guardian.address|default:'-' }}</span>
+            </div>
+            <div class="mb-3">
+              <strong class="text-primary">الرمز:</strong>
+              <span>{{ guardian.code|default:'-' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guardian Students Relations Card (col-md-8) -->
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header bg-primary text-white pt-3 pb-2">
+            <h5 class="text-white">الأبناء</h5>
+          </div>
+          <div class="card-body pt-3">
+            {% render_table students_table %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header bg-primary text-white pt-3 pb-2">
+            <h5 class="text-white">رمز التسجيل (QR Code)</h5>
+          </div>
+          <div class="card-body text-center">
+            {% if guardian.code %}
+                    <div class="d-flex flex-column justify-content-center align-items-center">
+                        {% qr_from_text guardian.code %}
+
+                        <h3 class="text-primary">{{ guardian.code }}</h3>
+                    </div>
+            {% else %}
+              <p>لا يوجد رمز QR</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

@@ -1,0 +1,268 @@
+<script>
+    document.addEventListener("DOMContentLoaded", function (event) {
+
+        const fieldType = document.getElementById('id_{{ form.type.name }}');
+        const textarea = document.getElementById('id_{{ form.value.name }}');
+        const div = document.createElement('div');
+        const inputField = document.createElement('input');
+        const ul = document.createElement('ul');
+        const parentDivCol = textarea.closest('.col');
+
+
+        function hideChoicesBasedOnFieldType(e) {
+            if (['select', 'radio', 'checkbox'].includes(fieldType.value)) {
+                if (div.parentElement.classList.contains('d-block')) {
+                    return
+                }
+                div.parentElement.classList.remove('d-none');
+                div.parentElement.classList.add('d-block');
+
+            } else {
+                textarea.value = JSON.stringify([]);
+                ul.innerHTML = '';
+                if (div.parentElement.classList.contains('d-none')) {
+                    return
+                }
+                div.parentElement.classList.remove('d-block');
+                div.parentElement.classList.add('d-none');
+
+            }
+        }
+
+        textarea.style.display = 'none';
+        const instance_values = textarea.value;
+        textarea.value = JSON.stringify([]);
+        if (instance_values) {
+            let currentItems = JSON.parse(instance_values);
+            if (currentItems) {
+                currentItems.forEach(item => {
+                    create_li_for_choice(item);
+                });
+            }
+        }
+
+        inputField.type = 'text';
+        inputField.placeholder = 'اكتب الاختيار';
+
+        const addButton = document.createElement('button');
+        addButton.innerHTML = '<i class="bi bi-plus"></i>';
+
+        ul.className = 'list-group p-0 m-0 w-100';
+
+
+        div.classList.add('d-flex', 'justify-content-between', 'align-items-center', 'w-100', 'gap-2')
+        inputField.className = 'form-control';
+        addButton.className = 'btn btn-primary h-100';
+        div.appendChild(inputField);
+        div.appendChild(addButton);
+
+        textarea.parentNode.insertBefore(div, textarea);
+        {#textarea.parentNode.insertBefore(ul, textarea);#}
+
+        {#nextDivCol.appendChild(div);#}
+        parentDivCol.nextElementSibling.appendChild(ul);
+
+        hideChoicesBasedOnFieldType()
+
+        fieldType.addEventListener('change', hideChoicesBasedOnFieldType);
+
+        addButton.addEventListener('click', function (e) {
+            e.preventDefault();
+            let value = inputField.value.trim();
+            create_li_for_choice(value);
+
+        });
+
+        function create_li_for_choice(value) {
+            if (value) {
+                    let currentItems = JSON.parse(textarea.value);
+                    currentItems.push(value);
+                    textarea.value = JSON.stringify(currentItems);
+
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center w-100 py-1 px-1 text-muted';
+                    {#li.textContent = value;#}
+
+                    const p = document.createElement('p');
+                    p.className = 'm-0 ms-2';
+                    p.textContent = value;
+
+                    const removeButton = document.createElement('button');
+
+                    removeButton.className = 'btn btn-danger btn-sm p-1';
+                    removeButton.innerHTML = '<i class="bi bi-x"></i>';
+
+                    removeButton.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        ul.removeChild(li);
+
+                        const updatedData = [];
+                        Array.from(ul.children).forEach(item => {
+                            updatedData.push(item.firstChild.textContent);
+                        });
+                        textarea.value = JSON.stringify(updatedData);
+
+                    });
+
+                    li.appendChild(p);
+                    li.appendChild(removeButton);
+                    ul.appendChild(li);
+
+                    inputField.value = '';
+                }
+        }
+
+    });
+
+    function hide_arrows_for_first_last_items(li1, li2) {
+        if (li1.previousElementSibling === null) {
+            li1.querySelector('.template-field-action-up').style.visibility = 'hidden';
+        } else {
+            li1.querySelector('.template-field-action-up').style.visibility = 'visible';
+        }
+
+        if (li1.nextElementSibling === null) {
+            li1.querySelector('.template-field-action-down').style.visibility = 'hidden';
+        } else {
+            li1.querySelector('.template-field-action-down').style.visibility = 'visible';
+        }
+
+        if (li2.previousElementSibling === null) {
+            li2.querySelector('.template-field-action-up').style.visibility = 'hidden';
+        } else {
+            li2.querySelector('.template-field-action-up').style.visibility = 'visible';
+        }
+
+        if (li2.nextElementSibling === null) {
+            li2.querySelector('.template-field-action-down').style.visibility = 'hidden';
+        } else {
+            li2.querySelector('.template-field-action-down').style.visibility = 'visible';
+        }
+    }
+
+    function swapElements(li1, li2, isMovingDown = false, hasRequest = false) {
+        const height = li1.offsetHeight;
+        li1.style.transform = `translateY(${isMovingDown ? height : -height}px)`;
+        li2.style.transform = `translateY(${isMovingDown ? -height : height}px)`;
+
+        li1.addEventListener('transitionend', function handler() {
+            this.removeEventListener('transitionend', handler);
+            li1.style.transition = 'none';
+            li2.style.transition = 'none';
+            li1.style.transform = '';
+            li2.style.transform = '';
+            if (isMovingDown) {
+                li1.parentNode.insertBefore(li2, li1);
+            } else {
+                li1.parentNode.insertBefore(li1, li2);
+            }
+            // Force reflow to reset transitions
+            void li1.offsetWidth;
+            void li2.offsetWidth;
+            li1.style.transition = '';
+            li2.style.transition = '';
+
+            let li1_order = li1.querySelector('.template-field-order');
+            let li2_order = li2.querySelector('.template-field-order');
+
+            if (li1_order && li2_order) {
+                let li1_order_text = li1_order.textContent;
+                li1_order.textContent = li2_order.textContent;
+                li2_order.textContent = li1_order_text;
+            }
+
+
+            if (hasRequest) {
+                let url = "{% url 'dashboard:template_field_swap' template.id %}"
+                console.log(url);
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        'field1': li1.id,
+                        'field2': li2.id,
+                    }),
+
+                }).then(response => {
+                    if (response.ok) {
+                        return true;
+                    }
+                }).catch(error => {
+                    swapElements(li2, li1, isMovingDown, false);
+                });
+            }
+
+            hide_arrows_for_first_last_items(li1, li2);
+        });
+    }
+
+    const li_first_child = document.querySelector('#template-fields li:first-child');
+    const li_last_child = document.querySelector('#template-fields li:last-child');
+    if (li_first_child && li_last_child) {
+        hide_arrows_for_first_last_items(li_first_child, li_last_child);
+    }
+
+    document.querySelectorAll('#template-fields .template-field-action-up').forEach(button => {
+        button.addEventListener('click', function () {
+            let li = this.closest('li');
+            let prevLi = li.previousElementSibling;
+            if (prevLi) {
+                swapElements(li, prevLi, false, true);
+            }
+        });
+
+    });
+
+    document.querySelectorAll('#template-fields .template-field-action-down').forEach(button => {
+        button.addEventListener('click', function () {
+            let li = this.closest('li');
+            let nextLi = li.nextElementSibling;
+            if (nextLi) {
+                swapElements(li, nextLi, true, true);
+            }
+        });
+    });
+
+    function removeField(field, e) {
+            let confirmDelete = confirm('هل أنت متأكد من حذف هذا الاختيار؟');
+            if (!confirmDelete) {
+                return;
+            }
+
+            let url = "{% url 'dashboard:template_field_delete' template.id 'XXXXX0XXXXX' %}";
+            url = url.replace("XXXXX0XXXXX", field);
+            const fieldElement = document.getElementById(field);
+            fieldElement.style.opacity = 0.35;
+
+            fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+
+            }).then(response => {
+                if (response.ok) {
+                    fieldElement.remove();
+                    // update order of fields after removing one
+                    document.querySelectorAll('#template-fields .template-field-order').forEach((item, index) => {
+                        item.textContent = index + 1;
+                    });
+                    return true;
+                }
+            }).catch(error => {
+                console.log(error);
+                fieldElement.style.opacity = 1;
+            }).finally(() => {
+                fieldElement.style.opacity = 1;
+            });
+        }
+
+    {#document.querySelectorAll('#template-fields .template-field-action-remove').forEach(#}
+    {#    #}
+    {#);#}
+
+</script>

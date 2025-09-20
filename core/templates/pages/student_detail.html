@@ -1,0 +1,153 @@
+{# templates/pages/student_detail.html #}
+{% extends "base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block styles %}
+<style>
+  .card-header.bg-primary, .card-header.bg-primary * { color:#fff !important; }
+  .card { border-radius: 1rem; box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+  .card .card-body { padding: 1.25rem 1.25rem 1rem; }
+
+  /* Timeline line (RTL aware) */
+  .timeline { position: relative; list-style: none; padding: 0; margin: 0; }
+  .timeline::before {
+    content:""; position:absolute; inset-inline-start: 20px; top:0; bottom:0;
+    width:2px; background: var(--bs-primary); opacity:.2;
+  }
+  @media (min-width: 768px) { .timeline::before { inset-inline-start: 24px; } }
+  .timeline-item { position: relative; margin-bottom: 1.25rem; padding-inline-start: 3.25rem; }
+  .timeline-item:last-child { margin-bottom: 0; }
+  .timeline-item::before {
+    content:""; position:absolute; top:.5rem; inset-inline-start: 14px;
+    width:20px; height:20px; background:#fff; border:3px solid var(--bs-primary);
+    border-radius:50%; box-shadow:0 0 0 4px rgba(13,110,253,.08);
+  }
+  .timeline-card { border:1px solid rgba(0,0,0,.06); border-radius:.85rem; background:#fff; padding: 1rem; }
+  .timeline-title { font-weight: 600; margin: 0; }
+  .timeline-meta { font-size: .85rem; color:#6c757d; }
+  .timeline-note { margin-top:.5rem; white-space: pre-line; }
+
+  /* Social style image */
+  .post-image {
+    width: 100%;
+    max-height: 520px;
+    object-fit: cover;
+    border-radius: .75rem;
+    border: 1px solid rgba(0,0,0,.08);
+  }
+
+  /* Sidebar inputs */
+  .sidebar-form .form-control, .sidebar-form .form-select { border-radius: .65rem; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+  <div class="row g-4">
+
+    <!-- LEFT: Student info -->
+    <div class="col-lg-4 order-lg-2">
+      <div class="card mb-3">
+        <div class="card-header bg-primary">
+          <h5 class="mb-0">بيانات الطالب</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-2"><span class="text-primary fw-semibold">الاسم:</span> {{ student.full_name|default:"-" }}</div>
+          <div class="mb-2"><span class="text-primary fw-semibold">الجنس:</span> {{ student.get_sex_display }}</div>
+          <div class="mb-2"><span class="text-primary fw-semibold">تاريخ الميلاد:</span> {{ student.date_of_birth|date:"Y-m-d"|default:"-" }}</div>
+          <div class="mb-2"><span class="text-primary fw-semibold">الهاتف:</span> {{ student.phone|default:"-" }}</div>
+          <div class="mb-2"><span class="text-primary fw-semibold">البريد:</span> {{ student.email|default:"-" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Post form (top) + Timeline (below) -->
+    <div class="col-lg-8 order-lg-1">
+
+      {% if form %}
+      <div class="card mb-3">
+        <div class="card-header bg-primary">
+          <h5 class="mb-0">إنشاء منشور</h5>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" autocomplete="off">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary">
+                <i class="bi bi-send ms-1"></i> نشر
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="card-header bg-primary">
+          <h5 class="mb-0">سجل المنشورات</h5>
+        </div>
+        <div class="card-body">
+          {% if timeline %}
+            <ul class="timeline">
+              {% for item in timeline %}
+                <li class="timeline-item">
+                  <div class="timeline-card">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                      <h6 class="timeline-title mb-0">{{ item.title|default:"—" }}</h6>
+                      {% if item.is_pinned %}
+                        <span class="badge bg-warning text-dark rounded-pill">مثبّت</span>
+                      {% endif %}
+                    </div>
+
+                    <div class="timeline-meta mt-1">
+                      <i class="bi bi-person"></i> بواسطة:
+                      {{ item.created_by.get_full_name|default:item.created_by }}
+                      <span class="mx-1">•</span>
+                      <i class="bi bi-clock"></i> {{ item.created_at|date:"Y-m-d H:i" }}
+                    </div>
+
+                    {% if item.note %}
+                      <div class="timeline-note">{{ item.note }}</div>
+                    {% endif %}
+
+                    {# show ONE image as a social post if it exists #}
+                    {% with atts=item.attachments.all %}
+                      {% if atts %}
+                        {% for att in atts|slice:":1" %}
+                          {% if att.is_image %}
+                            <div class="mt-3">
+                              <a href="{{ att.file.url }}" target="_blank">
+                                <img src="{{ att.url }}" alt="post image" class="post-image">
+                              </a>
+                            </div>
+                          {% else %}
+                            <div class="mt-3">
+                              <a class="btn btn-outline-secondary"
+                                 href="{{ att.file.url }}" target="_blank">
+                                <i class="bi bi-paperclip ms-1"></i> تحميل الملف
+                              </a>
+                            </div>
+                          {% endif %}
+                        {% endfor %}
+                      {% endif %}
+                    {% endwith %}
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-journal-text" style="font-size: 2rem;"></i>
+              <div class="mt-2">لا توجد منشورات بعد.</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+{% endblock %}

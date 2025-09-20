@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% load crispy_forms_filters %}
+{% load crispy_forms_tags %}
+
+{% load static %}
+
+{% block styles %}
+
+{% endblock %}
+
+{% block body %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+
+                    <div class="mt-2">
+
+                        <form method="post">
+                            {% csrf_token %}
+                            {% if form.helper %}
+                                {% crispy form form.helper %}
+                            {% else %}
+                                {% crispy form %}
+                            {% endif %}
+
+                            <div class="mt-2 text-end">
+                                <button class="btn btn-primary px-5 {{ submitButtonStyle }}" type="submit"
+                                        id="submitButton">{{ submitButton|default:"حفظ" }}</button>
+                            </div>
+
+                        </form>
+
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock body %}
+
+{% block scripts %}
+    
+    <script src="//unpkg.com/alpinejs" defer></script>
+
+    {% if includes %}
+        {% for inc in includes %}
+            {% include inc.template %}
+        {% endfor %}
+    {% endif %}
+
+{% endblock scripts %}

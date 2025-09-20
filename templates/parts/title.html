@@ -5,7 +5,7 @@
                 {% if not bar.main %}
                     {% if bar.back %}<a href="{{ bar.back }}">{% endif %}
                 <i role="button" {% if not bar.back %} onclick="window.history.go(-1); return false;" {% endif %}
-                   class="d-print-none align-middle bx bx-chevron-right fs-1 {% if bar.title %}me-1 ms-0{% endif %}"></i>
+                   class="d-print-none align-middle bi bi-chevron-right fs-4 {% if bar.title %}me-1 ms-0{% endif %}"></i>
                 {% if bar.back %}</a>{% endif %}
                 {% endif %}
 

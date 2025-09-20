@@ -29,7 +29,19 @@
             width: 100%;
             height: auto;
         }
+
+        .asteriskField {
+            color: #dc3838;
+            font-size: 1.2rem;
+            vertical-align: middle;
+            margin-right: 0.2rem;
+        }
+
+        .bg-primary-transparent {
+            background-color: var(--bs-body-bg)
+        }
     </style>
+
     {% block styles %}
 
     {% endblock styles %}
@@ -47,6 +59,7 @@
             </a>
         </header>
         {% include 'parts/title.html' %}
+        {% include 'components/messages.html' %}
         <div class="page-content">
             {% block body %}
 
@@ -76,10 +89,10 @@
 <script src="{% static 'assets/compiled/js/app.js' %}"></script>
 
 
-<!-- Need: Apexcharts -->
-<script src="{% static 'assets/extensions/apexcharts/apexcharts.min.js' %}"></script>
-<script src="{% static 'assets/static/js/pages/dashboard.js' %}"></script>
+{% block scripts %}
 
+
+{% endblock scripts %}
 </body>
 
 </html>

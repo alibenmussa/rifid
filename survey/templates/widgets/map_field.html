@@ -1,0 +1,67 @@
+<script async defer>{{ map|safe }}</script>
+<script>
+    // get data-map elements
+    const mapElements = document.querySelectorAll('[data-map]');
+    mapElements.forEach((element) => {
+        const map = document.createElement('div');
+        map.style.height = '450px';
+        map.style.marginTop = '25px';
+        map.style.borderRadius = '5px';
+        element.parentElement.appendChild(map);
+        const mapOptions = {
+            zoom: 9,
+            center: {
+                lat: 32.7157,
+                lng: 11.7789
+             },
+            disableDefaultUI: true, // This removes most default controls
+            mapTypeControl: false,
+            scaleControl: false,
+            streetViewControl: false,
+            rotateControl: false,
+            fullscreenControl: false,
+            zoomControl: true,
+            draggable: true,
+            clickableIcons: false,
+            styles: [
+                {
+                    "featureType": "all",
+                    "elementType": "all",
+                    "stylers": [
+                        {"saturation": -100},
+                        {"lightness": 20},
+                        {"visibility": "off"}
+                    ]
+                },
+                {
+                    "featureType": "all",
+                    "elementType": "all",
+                    "stylers": [
+                        {"visibility": "on"}
+                    ]
+                }
+            ],
+        };
+
+        const googleMap = new google.maps.Map(map, mapOptions);
+
+        let marker = null;
+
+        googleMap.maps.event.addListener(googleMap, 'click', function (event) {
+
+            if (!marker) {
+                googleMap.maps.event.clearListeners(googleMap, 'dragend');
+
+                marker = new google.maps.Marker({
+                    position: {
+                        lat: event.latLng.lat(),
+                        lng: event.latLng.lng()
+                    },
+                    map: googleMap,
+                    draggable: true,
+                });
+            }
+        });
+
+    });
+</script>
