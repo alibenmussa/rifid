@@ -170,7 +170,7 @@ FORMAT_MODULE_PATH =  "core.formats"
 STATIC_URL = "static/"
 # if env is production
 if os.environ.get('ENV') == 'PRODUCTION':
-    STATIC_ROOT = BASE_DIR / "staticfiles"
+    STATIC_ROOT = BASE_DIR / "static"
 else:
     STATICFILES_DIRS = [BASE_DIR / "static"]
 
