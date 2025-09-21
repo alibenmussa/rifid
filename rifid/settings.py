@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -165,8 +165,11 @@ FORMAT_MODULE_PATH =  "core.formats"
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "static"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+# if env is production
+if os.environ.get('ENV') == 'PRODUCTION':
+    STATIC_ROOT = BASE_DIR / "staticfiles"
+else:
+    STATICFILES_DIRS = [BASE_DIR / "static"]
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
