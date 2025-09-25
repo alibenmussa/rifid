@@ -14,8 +14,9 @@ from core.models import Guardian
 from api.serializers import (
     AuthLoginInputSerializer,
     AuthLoginOutputSerializer,
+    GuardianSerializer,
     StudentOptionSerializer,
-    GuardianMiniSerializer,
+    # GuardianMiniSerializer,
 )
 
 class AuthLoginView(APIView):
@@ -61,7 +62,7 @@ class AuthLoginView(APIView):
 
         out_payload = {
             "token": token.key,
-            "guardian": GuardianMiniSerializer(guardian).data,
+            "guardian": GuardianSerializer(guardian).data,
             "selected_student": StudentOptionSerializer(
                 guardian.selected_student, context={"selected_id": guardian.selected_student_id}
             ).data,
@@ -103,7 +104,7 @@ from .serializers import (
     RegistrationValidateCodeOutputSerializer,
     RegistrationCompleteOutputSerializer,
     StudentOptionSerializer,
-    GuardianMiniSerializer,
+    # GuardianMiniSerializer,
 )
 
 User = get_user_model()
@@ -180,47 +181,40 @@ class RegistrationCompleteView(APIView):
         serializer = RegistrationCompleteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            result = serializer.save()
-            guardian = result['guardian']
-            user = result['user']
+        result = serializer.save()
+        guardian = result['guardian']
+        user = result['user']
 
-            # Get guardian's students
-            students_qs = guardian.students.all().order_by("last_name", "first_name")
-            students_count = students_qs.count()
+        # Get guardian's students
+        students_qs = guardian.students.all().order_by("last_name", "first_name")
+        students_count = students_qs.count()
 
-            # Auto-select first student if available
-            selected_student = None
-            if students_count > 0:
-                first_student = students_qs.first()
-                guardian.selected_student = first_student
-                guardian.save(update_fields=['selected_student', 'updated_at'])
-                selected_student = first_student
+        # Auto-select first student if available
+        selected_student = None
+        if students_count > 0:
+            first_student = students_qs.first()
+            guardian.selected_student = first_student
+            guardian.save(update_fields=['selected_student', 'updated_at'])
+            selected_student = first_student
 
-            # Create authentication token
-            token, _ = Token.objects.get_or_create(user=user)
+        # Create authentication token
+        token, _ = Token.objects.get_or_create(user=user)
 
-            response_data = {
-                'success': True,
-                'message': 'تم التسجيل بنجاح',
-                'token': token.key,
-                'guardian': GuardianMiniSerializer(guardian).data,
-                'selected_student': StudentOptionSerializer(
-                    selected_student,
-                    context={'selected_id': selected_student.id if selected_student else None}
-                ).data if selected_student else None,
-                'has_multiple_students': students_count > 1,
-                'students_count': students_count,
-            }
+        response_data = {
+            'success': True,
+            'message': 'تم التسجيل بنجاح',
+            'token': token.key,
+            'guardian': GuardianSerializer(guardian).data,
+            'selected_student': StudentOptionSerializer(
+                selected_student,
+                context={'selected_id': selected_student.id if selected_student else None}
+            ).data if selected_student else None,
+            'has_multiple_students': students_count > 1,
+            'students_count': students_count,
+        }
 
-            output_serializer = RegistrationCompleteOutputSerializer(response_data)
-            return Response(output_serializer.data, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            return Response(
-                {'detail': 'حدث خطأ أثناء التسجيل'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        output_serializer = RegistrationCompleteOutputSerializer(response_data)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
 
 # Updated AuthLoginView with better phone number handling
@@ -247,6 +241,7 @@ class AuthLoginView(APIView):
 
         # Try authentication with the provided username (phone number)
         user = authenticate(request, username=username, password=password)
+        print(user)
 
         if not user or not user.is_active:
             return Response(
@@ -266,6 +261,7 @@ class AuthLoginView(APIView):
         # Check if guardian has students
         students_qs = guardian.students.all().order_by("last_name", "first_name")
         students_count = students_qs.count()
+        print(students_count)
 
         if students_count == 0:
             return Response(
@@ -284,14 +280,13 @@ class AuthLoginView(APIView):
 
         response_data = {
             "token": token.key,
-            "guardian": GuardianMiniSerializer(guardian).data,
-            "selected_student": StudentOptionSerializer(
-                guardian.selected_student,
-                context={"selected_id": guardian.selected_student_id}
-            ).data if guardian.selected_student else None,
+            "guardian": guardian,
+            "selected_student": guardian.selected_student,
             "has_multiple_students": students_count > 1,
             "students_count": students_count,
         }
 
+
         output_serializer = AuthLoginOutputSerializer(response_data)
+        print(output_serializer.data)
         return Response(output_serializer.data, status=status.HTTP_200_OK)

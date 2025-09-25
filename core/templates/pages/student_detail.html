@@ -1,153 +1,706 @@
-{# templates/pages/student_detail.html #}
 {% extends "base.html" %}
 {% load static %}
 {% load crispy_forms_tags %}
 
 {% block styles %}
 <style>
-  .card-header.bg-primary, .card-header.bg-primary * { color:#fff !important; }
-  .card { border-radius: 1rem; box-shadow: 0 8px 20px rgba(0,0,0,.06); }
-  .card .card-body { padding: 1.25rem 1.25rem 1rem; }
+    .student-profile-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        color: white;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
 
-  /* Timeline line (RTL aware) */
-  .timeline { position: relative; list-style: none; padding: 0; margin: 0; }
-  .timeline::before {
-    content:""; position:absolute; inset-inline-start: 20px; top:0; bottom:0;
-    width:2px; background: var(--bs-primary); opacity:.2;
-  }
-  @media (min-width: 768px) { .timeline::before { inset-inline-start: 24px; } }
-  .timeline-item { position: relative; margin-bottom: 1.25rem; padding-inline-start: 3.25rem; }
-  .timeline-item:last-child { margin-bottom: 0; }
-  .timeline-item::before {
-    content:""; position:absolute; top:.5rem; inset-inline-start: 14px;
-    width:20px; height:20px; background:#fff; border:3px solid var(--bs-primary);
-    border-radius:50%; box-shadow:0 0 0 4px rgba(13,110,253,.08);
-  }
-  .timeline-card { border:1px solid rgba(0,0,0,.06); border-radius:.85rem; background:#fff; padding: 1rem; }
-  .timeline-title { font-weight: 600; margin: 0; }
-  .timeline-meta { font-size: .85rem; color:#6c757d; }
-  .timeline-note { margin-top:.5rem; white-space: pre-line; }
+    .student-profile-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 200px;
+        height: 200px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        transform: translate(50px, -50px);
+    }
 
-  /* Social style image */
-  .post-image {
-    width: 100%;
-    max-height: 520px;
-    object-fit: cover;
-    border-radius: .75rem;
-    border: 1px solid rgba(0,0,0,.08);
-  }
+    .student-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        border: 4px solid rgba(255,255,255,0.3);
+    }
 
-  /* Sidebar inputs */
-  .sidebar-form .form-control, .sidebar-form .form-select { border-radius: .65rem; }
+    .info-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        border: none;
+        transition: transform 0.2s ease;
+    }
+
+    .info-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .info-card .card-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-bottom: 1px solid #e2e8f0;
+        border-radius: 15px 15px 0 0 !important;
+        padding: 1.25rem;
+    }
+
+    .info-card .card-header h5 {
+        margin: 0;
+        color: #1e293b;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .info-value {
+        color: #1e293b;
+        font-weight: 500;
+    }
+
+    .timeline {
+        position: relative;
+        padding-left: 0;
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 2rem;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        border: none;
+    }
+
+    .timeline-item.pinned {
+        border-left: 4px solid #f59e0b;
+    }
+
+    .timeline-content {
+        padding: 1.5rem;
+    }
+
+    .timeline-header {
+        display: flex;
+        justify-content: between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+
+    .timeline-title {
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0;
+    }
+
+    .timeline-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        color: #64748b;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+    }
+
+    .timeline-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+
+    .post-image {
+        width: 100%;
+        max-width: 500px;
+        height: auto;
+        border-radius: 10px;
+        margin-top: 1rem;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .post-image:hover {
+        transform: scale(1.02);
+    }
+
+    .attachment-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #f1f5f9;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #475569;
+        margin-top: 1rem;
+        transition: background-color 0.2s ease;
+    }
+
+    .attachment-link:hover {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        border: none;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: 0.875rem;
+    }
+
+    .post-form {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        border: none;
+        margin-bottom: 2rem;
+    }
+
+    .post-form .card-header {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        border-radius: 15px 15px 0 0 !important;
+    }
+
+    @media (max-width: 768px) {
+        .student-profile-header {
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .timeline-header {
+            flex-direction: column;
+            align-items: start;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block body %}
-<div class="container mt-4">
-  <div class="row g-4">
-
-    <!-- LEFT: Student info -->
-    <div class="col-lg-4 order-lg-2">
-      <div class="card mb-3">
-        <div class="card-header bg-primary">
-          <h5 class="mb-0">بيانات الطالب</h5>
-        </div>
-        <div class="card-body">
-          <div class="mb-2"><span class="text-primary fw-semibold">الاسم:</span> {{ student.full_name|default:"-" }}</div>
-          <div class="mb-2"><span class="text-primary fw-semibold">الجنس:</span> {{ student.get_sex_display }}</div>
-          <div class="mb-2"><span class="text-primary fw-semibold">تاريخ الميلاد:</span> {{ student.date_of_birth|date:"Y-m-d"|default:"-" }}</div>
-          <div class="mb-2"><span class="text-primary fw-semibold">الهاتف:</span> {{ student.phone|default:"-" }}</div>
-          <div class="mb-2"><span class="text-primary fw-semibold">البريد:</span> {{ student.email|default:"-" }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: Post form (top) + Timeline (below) -->
-    <div class="col-lg-8 order-lg-1">
-
-      {% if form %}
-      <div class="card mb-3">
-        <div class="card-header bg-primary">
-          <h5 class="mb-0">إنشاء منشور</h5>
-        </div>
-        <div class="card-body">
-          <form method="post" enctype="multipart/form-data" autocomplete="off">
-            {% csrf_token %}
-            {{ form|crispy }}
-            <div class="d-flex justify-content-end">
-              <button class="btn btn-primary">
-                <i class="bi bi-send ms-1"></i> نشر
-              </button>
+<div class="container-fluid">
+    <!-- Student Profile Header -->
+    <div class="student-profile-header">
+        <div class="row align-items-center">
+            <div class="col-lg-3 text-center text-lg-start">
+                <div class="student-avatar mx-auto mx-lg-0">
+                    {{ student.full_name|slice:":1"|upper }}
+                </div>
             </div>
-          </form>
-        </div>
-      </div>
-      {% endif %}
-
-      <div class="card">
-        <div class="card-header bg-primary">
-          <h5 class="mb-0">سجل المنشورات</h5>
-        </div>
-        <div class="card-body">
-          {% if timeline %}
-            <ul class="timeline">
-              {% for item in timeline %}
-                <li class="timeline-item">
-                  <div class="timeline-card">
-                    <div class="d-flex flex-wrap align-items-center gap-2">
-                      <h6 class="timeline-title mb-0">{{ item.title|default:"—" }}</h6>
-                      {% if item.is_pinned %}
-                        <span class="badge bg-warning text-dark rounded-pill">مثبّت</span>
-                      {% endif %}
-                    </div>
-
-                    <div class="timeline-meta mt-1">
-                      <i class="bi bi-person"></i> بواسطة:
-                      {{ item.created_by.get_full_name|default:item.created_by }}
-                      <span class="mx-1">•</span>
-                      <i class="bi bi-clock"></i> {{ item.created_at|date:"Y-m-d H:i" }}
-                    </div>
-
-                    {% if item.note %}
-                      <div class="timeline-note">{{ item.note }}</div>
+            <div class="col-lg-6">
+                <h1 class="mb-2">{{ student.full_name }}</h1>
+                <div class="d-flex flex-wrap gap-3 align-items-center">
+                    <span class="badge bg-light text-dark fs-6">
+                        <i class="bi bi-credit-card me-1"></i>
+                        {{ student.student_id }}
+                    </span>
+                    <span class="badge bg-light text-dark fs-6">
+                        <i class="bi bi-building me-1"></i>
+                        {{ student.school.name }}
+                    </span>
+                    {% if student.current_class %}
+                    <span class="badge bg-light text-dark fs-6">
+                        <i class="bi bi-door-open me-1"></i>
+                        {{ student.current_class.full_name }}
+                    </span>
                     {% endif %}
-
-                    {# show ONE image as a social post if it exists #}
-                    {% with atts=item.attachments.all %}
-                      {% if atts %}
-                        {% for att in atts|slice:":1" %}
-                          {% if att.is_image %}
-                            <div class="mt-3">
-                              <a href="{{ att.file.url }}" target="_blank">
-                                <img src="{{ att.url }}" alt="post image" class="post-image">
-                              </a>
-                            </div>
-                          {% else %}
-                            <div class="mt-3">
-                              <a class="btn btn-outline-secondary"
-                                 href="{{ att.file.url }}" target="_blank">
-                                <i class="bi bi-paperclip ms-1"></i> تحميل الملف
-                              </a>
-                            </div>
-                          {% endif %}
-                        {% endfor %}
-                      {% endif %}
-                    {% endwith %}
-                  </div>
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <div class="text-center text-muted py-4">
-              <i class="bi bi-journal-text" style="font-size: 2rem;"></i>
-              <div class="mt-2">لا توجد منشورات بعد.</div>
+                    {% if stats.age %}
+                    <span class="badge bg-light text-dark fs-6">
+                        <i class="bi bi-calendar me-1"></i>
+                        {{ stats.age }} سنة
+                    </span>
+                    {% endif %}
+                </div>
             </div>
-          {% endif %}
+            <div class="col-lg-3 text-center text-lg-end mt-3 mt-lg-0">
+                <div class="d-flex flex-column gap-2">
+                    <span class="text-white-50">إجمالي المنشورات</span>
+                    <span class="fs-2 fw-bold">{{ stats.timeline_posts }}</span>
+                </div>
+            </div>
         </div>
-      </div>
-
     </div>
 
-  </div>
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ stats.timeline_posts }}</div>
+            <div class="stat-label">إجمالي المنشورات</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-warning">{{ stats.pinned_posts }}</div>
+            <div class="stat-label">المنشورات المثبتة</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ stats.guardians_count }}</div>
+            <div class="stat-label">أولياء الأمور</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-info">
+                {% if student.enrollment_date %}
+                    {{ student.enrollment_date|timesince }}
+                {% else %}
+                    غير محدد
+                {% endif %}
+            </div>
+            <div class="stat-label">فترة الالتحاق</div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Student Information Panel -->
+        <div class="col-xl-4 order-xl-2">
+            <div class="row">
+                <!-- Personal Information -->
+                <div class="col-12">
+                    <div class="info-card mb-4">
+                        <div class="card-header">
+                            <h5>
+                                <i class="bi bi-person-circle text-primary"></i>
+                                المعلومات الشخصية
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-person text-muted"></i>
+                                    الاسم الكامل
+                                </div>
+                                <div class="info-value">{{ student.full_name|default:"-" }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-gender-ambiguous text-muted"></i>
+                                    الجنس
+                                </div>
+                                <div class="info-value">{{ student.get_sex_display }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-calendar-event text-muted"></i>
+                                    تاريخ الميلاد
+                                </div>
+                                <div class="info-value">
+                                    {% if student.date_of_birth %}
+                                        {{ student.date_of_birth|date:"j F Y" }}
+                                        <small class="text-muted d-block">{{ stats.age }} سنة</small>
+                                    {% else %}
+                                        غير محدد
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-geo-alt text-muted"></i>
+                                    مكان الميلاد
+                                </div>
+                                <div class="info-value">{{ student.place_of_birth|default:"-" }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-telephone text-muted"></i>
+                                    الهاتف
+                                </div>
+                                <div class="info-value">
+                                    {{ student.phone|default:"-" }}
+                                    {% if student.alternative_phone %}
+                                    <small class="text-muted d-block">{{ student.alternative_phone }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-envelope text-muted"></i>
+                                    البريد الإلكتروني
+                                </div>
+                                <div class="info-value">{{ student.email|default:"-" }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-house text-muted"></i>
+                                    العنوان
+                                </div>
+                                <div class="info-value">{{ student.address|default:"-" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Academic Information -->
+                <div class="col-12">
+                    <div class="info-card mb-4">
+                        <div class="card-header">
+                            <h5>
+                                <i class="bi bi-book text-success"></i>
+                                المعلومات الأكاديمية
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-credit-card text-muted"></i>
+                                    الرقم الجامعي
+                                </div>
+                                <div class="info-value">
+                                    <span class="badge bg-primary">{{ student.student_id }}</span>
+                                </div>
+                            </div>
+                            {% if student.current_class %}
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-door-open text-muted"></i>
+                                    الفصل الحالي
+                                </div>
+                                <div class="info-value">
+                                    {{ student.current_class.full_name }}
+                                    <small class="text-muted d-block">{{ student.current_class.grade.get_grade_type_display }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-calendar-check text-muted"></i>
+                                    تاريخ التسجيل
+                                </div>
+                                <div class="info-value">
+                                    {% if student.enrollment_date %}
+                                        {{ student.enrollment_date|date:"j F Y" }}
+                                    {% else %}
+                                        غير محدد
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-activity text-muted"></i>
+                                    الحالة
+                                </div>
+                                <div class="info-value">
+                                    {% if student.is_active %}
+                                        <span class="badge bg-success">نشط</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">غير نشط</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Guardian Information -->
+                {% if guardian_relationships %}
+                <div class="col-12">
+                    <div class="info-card mb-4">
+                        <div class="card-header">
+                            <h5>
+                                <i class="bi bi-people text-warning"></i>
+                                أولياء الأمور
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% for rel in guardian_relationships %}
+                            <div class="info-row">
+                                <div class="info-label">
+                                    <i class="bi bi-person-badge text-muted"></i>
+                                    {{ rel.get_relationship_display }}
+                                    {% if rel.is_primary %}
+                                        <span class="badge bg-primary ms-1">أساسي</span>
+                                    {% endif %}
+                                </div>
+                                <div class="info-value">
+                                    <div>{{ rel.guardian }}</div>
+                                    {% if rel.guardian.phone %}
+                                    <small class="text-muted">{{ rel.guardian.phone }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Timeline and Posts Panel -->
+        <div class="col-xl-8 order-xl-1">
+            <!-- Post Form (for authorized users) -->
+            {% if form %}
+            <div class="post-form">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        إضافة منشور جديد
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" autocomplete="off">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-secondary" onclick="this.form.reset()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                إعادة تعيين
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send me-1"></i>
+                                نشر
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Timeline Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0">
+                    <i class="bi bi-clock-history me-2 text-primary"></i>
+                    السجل الزمني
+                </h4>
+                {% if stats.timeline_posts > 0 %}
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="timeline-filter" id="all-posts" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="all-posts">الكل</label>
+
+                    <input type="radio" class="btn-check" name="timeline-filter" id="pinned-posts">
+                    <label class="btn btn-outline-primary btn-sm" for="pinned-posts">المثبت</label>
+
+                    <input type="radio" class="btn-check" name="timeline-filter" id="recent-posts">
+                    <label class="btn btn-outline-primary btn-sm" for="recent-posts">الأحدث</label>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Timeline Posts -->
+            {% if timeline %}
+            <div class="timeline">
+                {% for item in timeline %}
+                <div class="timeline-item {% if item.is_pinned %}pinned{% endif %}" data-content-type="{{ item.content_type }}">
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <div class="flex-grow-1">
+                                {% if item.title %}
+                                <h6 class="timeline-title">{{ item.title }}</h6>
+                                {% endif %}
+
+                                <div class="timeline-meta">
+                                    <span>
+                                        <i class="bi bi-person"></i>
+                                        {{ item.created_by.get_full_name|default:item.created_by }}
+                                    </span>
+                                    <span>
+                                        <i class="bi bi-clock"></i>
+                                        {{ item.created_at|date:"j F Y - H:i" }}
+                                    </span>
+                                </div>
+
+                                <div class="timeline-badges">
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-tag"></i>
+                                        {{ item.get_content_type_display }}
+                                    </span>
+                                    {% if item.is_pinned %}
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-pin-angle"></i>
+                                        مثبت
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Post Content -->
+                        {% if item.note %}
+                        <div class="timeline-note mt-3">
+                            {{ item.note|linebreaks }}
+                        </div>
+                        {% endif %}
+
+                        <!-- Attachments -->
+                        {% for att in item.attachments.all %}
+                            {% if att.is_image %}
+                            <div class="mt-3">
+                                <img src="{{ att.file.url }}"
+                                     alt="مرفق صورة"
+                                     class="post-image"
+                                     onclick="openImageModal('{{ att.file.url }}')">
+                            </div>
+                            {% else %}
+                            <a href="{{ att.file.url }}"
+                               target="_blank"
+                               class="attachment-link">
+                                <i class="bi bi-paperclip"></i>
+                                تحميل الملف
+                            </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Load More Button -->
+            {% if timeline|length >= 20 %}
+            <div class="text-center mt-4">
+                <button class="btn btn-outline-primary" onclick="loadMorePosts()">
+                    <i class="bi bi-arrow-down-circle me-1"></i>
+                    تحميل المزيد
+                </button>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <i class="bi bi-journal-text text-muted" style="font-size: 4rem;"></i>
+                </div>
+                <h5 class="text-muted">لا توجد منشورات بعد</h5>
+                <p class="text-muted mb-4">
+                    {% if can_post_timeline %}
+                        ابدأ بإضافة أول منشور للطالب
+                    {% else %}
+                        لم يتم إضافة أي منشورات لهذا الطالب بعد
+                    {% endif %}
+                </p>
+                {% if can_post_timeline and not form %}
+                <button class="btn btn-primary" onclick="$('#post-form').show(); $('html, body').animate({scrollTop: $('#post-form').offset().top - 100}, 500);">
+                    <i class="bi bi-plus-circle me-1"></i>
+                    إضافة منشور
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">عرض الصورة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" alt="صورة" class="img-fluid rounded">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Image modal functionality
+    function openImageModal(imageSrc) {
+        document.getElementById('modalImage').src = imageSrc;
+        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        modal.show();
+    }
+
+    // Timeline filtering
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterButtons = document.querySelectorAll('input[name="timeline-filter"]');
+        const timelineItems = document.querySelectorAll('.timeline-item');
+
+        filterButtons.forEach(button => {
+            button.addEventListener('change', function() {
+                const filter = this.id;
+
+                timelineItems.forEach(item => {
+                    switch(filter) {
+                        case 'pinned-posts':
+                            item.style.display = item.classList.contains('pinned') ? 'block' : 'none';
+                            break;
+                        case 'recent-posts':
+                            // Show only items from last 7 days (you'd need to add data attributes)
+                            item.style.display = 'block'; // Simplified for now
+                            break;
+                        default:
+                            item.style.display = 'block';
+                    }
+                });
+            });
+        });
+    });
+
+    // Load more posts functionality
+    function loadMorePosts() {
+        // Implementation for loading more posts via AJAX
+        alert('تحميل المزيد من المنشورات - قيد التطوير');
+    }
+
+    // Auto-expand textareas
+    document.addEventListener('DOMContentLoaded', function() {
+        const textareas = document.querySelectorAll('textarea');
+        textareas.forEach(textarea => {
+            textarea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+            });
+        });
+    });
+</script>
 {% endblock %}

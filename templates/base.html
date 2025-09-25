@@ -5,26 +5,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% if bar.title %}{{ bar.title }} | {% endif %}رفد</title>
-
+    <title>{% if bar.title %}{{ bar.title }} | {% endif %}{{ user_school.name|default:"رفد" }}</title>
 
     <link rel="shortcut icon" href="{% static 'assets/compiled/svg/favicon.svg' %}" type="image/x-icon">
     <link rel="shortcut icon"
           href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACEAAAAiCAYAAADRcLDBAAAEs2lUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNS41LjAiPgogPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4KICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIgogICAgeG1sbnM6ZXhpZj0iaHR0cDovL25zLmFkb2JlLmNvbS9leGlmLzEuMC8iCiAgICB4bWxuczp0aWZmPSJodHRwOi8vbnMuYWRvYmUuY29tL3RpZmYvMS4wLyIKICAgIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIKICAgIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyIKICAgIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIgogICAgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIKICAgZXhpZjpQaXhlbFhEaW1lbnNpb249IjMzIgogICBleGlmOlBpeGVsWURpbWVuc2lvbj0iMzQiCiAgIGV4aWY6Q29sb3JTcGFjZT0iMSIKICAgdGlmZjpJbWFnZVdpZHRoPSIzMyIKICAgdGlmZjpJbWFnZUxlbmd0aD0iMzQiCiAgIHRpZmY6UmVzb2x1dGlvblVuaXQ9IjIiCiAgIHRpZmY6WFJlc29sdXRpb249Ijk2LjAiCiAgIHRpZmY6WVJlc29sdXRpb249Ijk2LjAiCiAgIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiCiAgIHBob3Rvc2hvcDpJQ0NQcm9maWxlPSJzUkdCIElFQzYxOTY2LTIuMSIKICAgeG1wOk1vZGlmeURhdGU9IjIwMjItMDMtMzFUMTA6NTA6MjMrMDI6MDAiCiAgIHhtcDpNZXRhZGF0YURhdGU9IjIwMjItMDMtMzFUMTA6NTA6MjMrMDI6MDAiPgogICA8eG1wTU06SGlzdG9yeT4KICAgIDxyZGY6U2VxPgogICAgIDxyZGY6bGkKICAgICAgc3RFdnQ6YWN0aW9uPSJwcm9kdWNlZCIKICAgICAgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWZmaW5pdHkgRGVzaWduZXIgMS4xMC4xIgogICAgICBzdEV2dDp3aGVuPSIyMDIyLTAzLTMxVDEwOjUwOjIzKzAyOjAwIi8+CiAgICA8L3JkZjpTZXE+CiAgIDwveG1wTU06SGlzdG9yeT4KICA8L3JkZjpEZXNjcmlwdGlvbj4KIDwvcmRmOlJERj4KPC94OnhtcG1ldGE+Cjw/eHBhY2tldCBlbmQ9InIiPz5V57uAAAABgmlDQ1BzUkdCIElFQzYxOTY2LTIuMQAAKJF1kc8rRFEUxz9maORHo1hYKC9hISNGTWwsRn4VFmOUX5uZZ36oeTOv954kW2WrKLHxa8FfwFZZK0WkZClrYoOe87ypmWTO7dzzud97z+nec8ETzaiaWd4NWtYyIiNhZWZ2TvE946WZSjqoj6mmPjE1HKWkfdxR5sSbgFOr9Ll/rXoxYapQVik8oOqGJTwqPL5i6Q5vCzeo6dii8KlwpyEXFL519LjLLw6nXP5y2IhGBsFTJ6ykijhexGra0ITl5bRqmWU1fx/nJTWJ7PSUxBbxJkwijBBGYYwhBgnRQ7/MIQIE6ZIVJfK7f/MnyUmuKrPOKgZLpEhj0SnqslRPSEyKnpCRYdXp/9++msneoFu9JgwVT7b91ga+LfjetO3PQ9v+PgLvI1xkC/m5A+h7F32zoLXug38dzi4LWnwHzjeg8UGPGbFfySvuSSbh9QRqZ6H+Gqrm3Z7l9zm+h+iafNUV7O5Bu5z3L/wAdthn7QIme0YAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAJTSURBVFiF7Zi9axRBGIefEw2IdxFBRQsLWUTBaywSK4ubdSGVIY1Y6HZql8ZKCGIqwX/AYLmCgVQKfiDn7jZeEQMWfsSAHAiKqPiB5mIgELWYOW5vzc3O7niHhT/YZvY37/swM/vOzJbIqVq9uQ04CYwCI8AhYAlYAB4Dc7HnrOSJWcoJcBS4ARzQ2F4BZ2LPmTeNuykHwEWgkQGAet9QfiMZjUSt3hwD7psGTWgs9pwH1hC1enMYeA7sKwDxBqjGnvNdZzKZjqmCAKh+U1kmEwi3IEBbIsugnY5avTkEtIAtFhBrQCX2nLVehqyRqFoCAAwBh3WGLAhbgCRIYYinwLolwLqKUwwi9pxV4KUlxKKKUwxC6ZElRCPLYAJxGfhSEOCz6m8HEXvOB2CyIMSk6m8HoXQTmMkJcA2YNTHm3congOvATo3tE3A29pxbpnFzQSiQPcB55IFmFNgFfEQeahaAGZMpsIJIAZWAHcDX2HN+2cT6r39GxmvC9aPNwH5gO1BOPFuBVWAZue0vA9+A12EgjPadnhCuH1WAE8ivYAQ4ohKaagV4gvxi5oG7YSA2vApsCOH60WngKrA3R9IsvQUuhIGY00K4flQG7gHH/mLytB4C42EgfrQb0mV7us8AAMeBS8mGNMR4nwHamtBB7B4QRNdaS0M8GxDEog7iyoAguvJ0QYSBuAOcAt71Kfl7wA8DcTvZ2KtOlJEr+ByyQtqqhTyHTIeB+ONeqi3brh+VgIN0fohUgWGggizZFTplu12yW8iy/YLOGWMpDMTPXnl+Az9vj2HERYqPAAAAAElFTkSuQmCC"
           type="image/png">
 
-
-    {#  <link rel="stylesheet" href="{% static '' %}assets/compiled/css/app.css">#}
     <link rel="stylesheet" href="{% static 'assets/compiled/css/app.rtl.css' %}">
     <link rel="stylesheet" href="{% static 'assets/compiled/css/app-dark.rtl.css' %}">
     <link rel="stylesheet" href="{% static 'assets/compiled/css/iconly.css' %}">
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
 
         :root {
-            --bs-body-font-family: 'IBM Plex Sans Arabic', "Nunito", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif !important;
+            --bs-body-font-family: 'IBM Plex+Sans Arabic', "Nunito", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", sans-serif !important;
+            --primary-color: #435ebe;
+            --secondary-color: #6c757d;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #0dcaf0;
         }
+
         .sidebar-wrapper .sidebar-header img {
             width: 100%;
             height: auto;
@@ -38,61 +42,424 @@
         }
 
         .bg-primary-transparent {
-            background-color: var(--bs-body-bg)
+            background-color: var(--bs-body-bg);
+        }
+
+        /* Enhanced Header Styles */
+        .main-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #5a6fd8 100%);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .school-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .school-logo {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .user-dropdown .dropdown-toggle {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 25px;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .user-dropdown .dropdown-toggle:hover,
+        .user-dropdown .dropdown-toggle:focus {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            box-shadow: none;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .user-dropdown .dropdown-menu {
+            border: none;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.15);
+            border-radius: 10px;
+            min-width: 250px;
+        }
+
+        .user-dropdown .dropdown-item {
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .user-dropdown .dropdown-item i {
+            width: 18px;
+            text-align: center;
+        }
+
+        .user-dropdown .dropdown-divider {
+            margin: 0.5rem 0;
+        }
+
+        /* Stats Cards */
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            border: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.12);
+        }
+
+        .stats-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .stats-icon.purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .stats-icon.blue { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); }
+        .stats-icon.green { background: linear-gradient(135deg, #10b981 0%, #047857 100%); }
+        .stats-icon.orange { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .stats-icon.red { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+
+        /* Enhanced Page Title */
+        .page-title-section {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .page-subtitle {
+            color: #64748b;
+            font-size: 0.95rem;
+            margin-top: 0.25rem;
+        }
+
+        .breadcrumb {
+            background: none;
+            padding: 0;
+            margin: 0.5rem 0 0 0;
+        }
+
+        .breadcrumb-item a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        /* Enhanced Buttons */
+        .btn-group-actions .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Timeline Styles */
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+            margin-bottom: 1.5rem;
+            border-left: 2px solid #e2e8f0;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 0.5rem;
+            width: 10px;
+            height: 10px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px var(--primary-color);
+        }
+
+        .timeline-item.pinned::before {
+            background: #f59e0b;
+            box-shadow: 0 0 0 2px #f59e0b;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .school-info {
+                flex-direction: column;
+                gap: 0.5rem;
+                text-align: center;
+            }
+
+            .user-dropdown .dropdown-toggle {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.9rem;
+            }
+
+            .stats-card {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
         }
     </style>
 
-    {% block styles %}
-
-    {% endblock styles %}
+    {% block styles %}{% endblock styles %}
 </head>
 
 <body>
-<script src="{% static 'assets/static/js/initTheme.js' %}"></script>
-{% block page %}
-<div id="app">
-    {% include 'parts/sidebar.html' %}
-    <div id="main">
-        <header class="mb-3">
-            <a href="#" class="burger-btn d-block d-xl-none">
-                <i class="bi bi-justify fs-3"></i>
-            </a>
-        </header>
-        {% include 'parts/title.html' %}
-        {% include 'components/messages.html' %}
-        <div class="page-content">
-            {% block body %}
+    <script src="{% static 'assets/static/js/initTheme.js' %}"></script>
 
-            {% endblock body %}
-        </div>
+    {% block page %}
+    <div id="app">
+        <!-- Enhanced Header -->
+        <header class="main-header d-print-none">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="school-info">
+                            <div class="school-logo">
+                                <i class="bi bi-building"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">{{ user_school.name|default:"نظام إدارة المدارس" }}</h5>
+                                {% if user_school.code %}
+                                    <small class="opacity-75">{{ user_school.code }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
 
-        <footer>
-            <div class="footer clearfix mb-0 text-muted">
-                <div class="text-center">
-                    <p>جميع الحقوق محفوظة <a href="https://saugi.me">رفد</a> &copy; <script>
-                            document.write(new Date().getFullYear());
-                        </script></p>
+                    <div class="col-md-6 text-end">
+                        {% if user.is_authenticated %}
+                        <div class="d-flex align-items-center justify-content-end gap-3">
+                            <!-- Quick Stats -->
+                            {% if school_stats %}
+                            <div class="d-none d-lg-flex gap-3">
+                                <div class="text-center">
+                                    <div class="fw-bold">{{ school_stats.total_students }}</div>
+                                    <small class="opacity-75">طالب</small>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fw-bold">{{ school_stats.total_classes }}</div>
+                                    <small class="opacity-75">فصل</small>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- User Dropdown -->
+                            <div class="user-dropdown dropdown">
+                                <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <div class="user-avatar">
+                                        {% if user.avatar %}
+                                            <img src="{{ user.avatar.url }}" alt="{{ user.get_display_name }}" class="w-100 h-100 rounded-circle object-fit-cover">
+                                        {% else %}
+                                            {{ user.get_display_name|slice:":1"|upper }}
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-none d-md-block">
+                                        <div class="fw-semibold">{{ user.get_display_name }}</div>
+                                        <small class="opacity-75">{{ user_school_role|default:user.get_user_type_display }}</small>
+                                    </div>
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li class="dropdown-header">
+                                        <div class="d-flex align-items-center">
+                                            <div class="user-avatar me-2">
+                                                {% if user.avatar %}
+                                                    <img src="{{ user.avatar.url }}" alt="{{ user.get_display_name }}" class="w-100 h-100 rounded-circle object-fit-cover">
+                                                {% else %}
+                                                    {{ user.get_display_name|slice:":1"|upper }}
+                                                {% endif %}
+                                            </div>
+                                            <div>
+                                                <div class="fw-semibold">{{ user.get_display_name }}</div>
+                                                <small class="text-muted">{{ user.email|default:user.username }}</small>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+
+                                    {% if user_school_role == "ولي أمر" %}
+                                    <li><a class="dropdown-item" href="{% url 'dashboard:students_list' %}">
+                                        <i class="bi bi-people"></i> أطفالي
+                                    </a></li>
+                                    {% endif %}
+
+                                    <li><a class="dropdown-item" href="#">
+                                        <i class="bi bi-person"></i> الملف الشخصي
+                                    </a></li>
+
+                                    <li><a class="dropdown-item" href="#">
+                                        <i class="bi bi-gear"></i> الإعدادات
+                                    </a></li>
+
+                                    {% if user.is_staff %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="/admin/" target="_blank">
+                                        <i class="bi bi-shield-check"></i> لوحة الإدارة
+                                    </a></li>
+                                    {% endif %}
+
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="{% url 'accounts:logout' %}">
+                                        <i class="bi bi-box-arrow-right"></i> تسجيل الخروج
+                                    </a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div>
+                            <a href="{% url 'accounts:login' %}" class="btn btn-light">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>تسجيل الدخول
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
-{#                <div class="float-end">#}
-{#                    <p>Crafted with <span class="text-danger"><i class="bi bi-heart-fill icon-mid"></i></span>#}
-{#                        by <a href="https://saugi.me">Saugi</a></p>#}
-{#                </div>#}
             </div>
-        </footer>
+        </header>
+
+        <!-- Main Content -->
+        {% include 'parts/sidebar.html' %}
+
+        <div id="main">
+            <!-- Mobile Header -->
+            <header class="mb-3 d-xl-none">
+                <a href="#" class="burger-btn d-block">
+                    <i class="bi bi-justify fs-3"></i>
+                </a>
+            </header>
+
+            <!-- Enhanced Page Title -->
+            {% if bar %}
+                    {% include 'parts/title.html' %}
+            {% endif %}
+
+            <!-- Messages -->
+            {% include 'components/messages.html' %}
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <div class="container-fluid">
+                    {% block body %}{% endblock body %}
+                </div>
+            </div>
+
+            <!-- Enhanced Footer -->
+            <footer class="mt-5 d-print-none">
+                <div class="footer clearfix mb-0 text-muted">
+                    <div class="container-fluid">
+                        <div class="row align-items-center py-3">
+                            <div class="col-md-6 text-center text-md-start">
+                                <p class="mb-0">
+                                    جميع الحقوق محفوظة ©
+                                    <a href="#" class="text-decoration-none">رفد</a>
+                                    <script>document.write(new Date().getFullYear());</script>
+                                </p>
+                            </div>
+                            <div class="col-md-6 text-center text-md-end">
+                                {% if user_school.name %}
+                                <p class="mb-0">
+                                    <i class="bi bi-building me-1"></i>
+                                    {{ user_school.name }}
+                                    {% if user_school.phone %}
+                                    <span class="mx-2">|</span>
+                                    <i class="bi bi-telephone me-1"></i>
+                                    {{ user_school.phone }}
+                                    {% endif %}
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
     </div>
-</div>
-{% endblock page %}
-<script src="{% static 'assets/static/js/components/dark.js' %}"></script>
-<script src="{% static 'assets/extensions/perfect-scrollbar/perfect-scrollbar.min.js' %}"></script>
+    {% endblock page %}
 
+    <!-- Scripts -->
+    <script src="{% static 'assets/static/js/components/dark.js' %}"></script>
+    <script src="{% static 'assets/extensions/perfect-scrollbar/perfect-scrollbar.min.js' %}"></script>
+    <script src="{% static 'assets/compiled/js/app.js' %}"></script>
 
-<script src="{% static 'assets/compiled/js/app.js' %}"></script>
+    <!-- Custom JavaScript -->
+    <script>
+        // Auto-hide alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
+            alerts.forEach(function(alert) {
+                setTimeout(function() {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+        });
 
+        // Enhanced dropdown behavior
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdownToggle = document.querySelector('.user-dropdown .dropdown-toggle');
+            if (dropdownToggle) {
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                });
+            }
+        });
 
-{% block scripts %}
+        // Print functionality
+        function printPage() {
+            window.print();
+        }
 
+        // Export functionality placeholder
+        function exportData(format) {
+            alert('تصدير البيانات بصيغة ' + format + ' - قيد التطوير');
+        }
+    </script>
 
-{% endblock scripts %}
+    {% block scripts %}{% endblock scripts %}
 </body>
-
 </html>
