@@ -186,7 +186,8 @@ class GuardianSerializer(serializers.ModelSerializer, TimestampMixin):
 
     def get_children_count(self, obj):
         """Count guardian's children"""
-        return obj.students.filter(is_active=True).count()
+        return obj.guardianstudent_set.all()
+        # return obj.students.filter(is_active=True).count()
 
 
 class StudentSerializer(serializers.ModelSerializer, TimestampMixin):
