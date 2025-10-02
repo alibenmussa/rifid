@@ -72,6 +72,9 @@ class Command(BaseCommand):
                 grades = self.create_grades(school)
                 classes = self.create_classes(school, grades, current_year)
 
+                # Create dashboard user for this school
+                dashboard_user = self.create_dashboard_user(school)
+
                 # Create teachers and employees
                 teachers = self.create_teachers(school, options['teachers'])
                 employees = self.create_employees(school)
@@ -85,13 +88,13 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.SUCCESS(f'✓ School "{school.name}" setup complete')
                 )
+                self.stdout.write(f'  Dashboard: {dashboard_user.username} / Test@123')
 
         self.stdout.write(
             self.style.SUCCESS('🎉 Fake data generation completed successfully!')
         )
         self.stdout.write('Login credentials:')
         self.stdout.write('• Super Admin - Username: admin, Password: Test@123')
-        self.stdout.write('• School Dashboard - Username: dashboard, Password: Test@123')
 
     def create_super_user(self):
         """Create super admin user"""
@@ -113,24 +116,45 @@ class Command(BaseCommand):
             admin.save()
             self.stdout.write('✓ Super admin user created')
 
-        # Create dashboard user
-        dashboard, created = User.objects.get_or_create(
-            username='dashboard',
+    def create_dashboard_user(self, school):
+        """Create dashboard user as employee for specific school"""
+        username = f'dashboard_{school.code.lower()}'
+
+        user, created = User.objects.get_or_create(
+            username=username,
             defaults={
-                'email': 'dashboard@school.local',
+                'email': f'dashboard@{school.code.lower()}.edu.tn',
                 'first_name': 'لوحة',
                 'last_name': 'التحكم',
                 'is_staff': True,
                 'is_superuser': False,
-                'user_type': User.ADMIN,
+                'user_type': User.EMPLOYEE,
+                'phone': f'71{random.randint(100000, 999999)}',
                 'is_active': True,
                 'language': 'ar',
             }
         )
         if created:
-            dashboard.set_password('Test@123')
-            dashboard.save()
-            self.stdout.write('✓ Dashboard user created')
+            user.set_password('Test@123')
+            user.save()
+
+            # Create employee profile for dashboard user
+            EmployeeProfile.objects.create(
+                user=user,
+                school=school,
+                employee_id=f'E{school.code}000',
+                position='admin',
+                department='الإدارة',
+                hire_date=date(2024, 9, 1),
+                salary=Decimal('10000'),
+                can_manage_students=True,
+                can_manage_teachers=True,
+                can_view_reports=True,
+                is_active=True
+            )
+            self.stdout.write(f'✓ Dashboard user created for {school.name}')
+
+        return user
 
     def create_school(self, index):
         """Create a school with Arabic name"""
@@ -147,12 +171,12 @@ class Command(BaseCommand):
 
         school = School.objects.create(
             name=arabic_school_names[(index - 1) % len(arabic_school_names)],
-            address=f'حي السلام، شارع {random.randint(1, 50)}، مدينة الرياض',
-            phone=f'011{random.randint(1000000, 9999999)}',
-            email=f'info@school{index}.edu.sa',
+            address=f'حي السلام، شارع {random.randint(1, 50)}، تونس',
+            phone=f'71{random.randint(100000, 999999)}',
+            email=f'info@school{index}.edu.tn',
             principal_name=random.choice([
-                'أحمد محمد العبدالله', 'فاطمة علي الأحمد', 'محمد سعد الخالد',
-                'نورا حسن المحمد', 'سالم عبدالرحمن السعد', 'مريم خالد الحسن'
+                'أحمد محمد بن علي', 'فاطمة الزهراء بن صالح', 'محمد الأمين بن يوسف',
+                'نورا حسن بن عبدالله', 'سالم عبدالرحمن بن مبروك', 'مريم خالد بن حسين'
             ]),
             academic_year_start=date(2024, 9, 1),
             academic_year_end=date(2025, 6, 30),
@@ -185,23 +209,23 @@ class Command(BaseCommand):
         return years
 
     def create_grades(self, school):
-        """Create grades for school"""
+        """Create grades for school - 6 primary + 3 middle + 3 secondary"""
         grades_data = [
-            # Primary
-            ('الصف الأول الابتدائي', 1, 'primary'),
-            ('الصف الثاني الابتدائي', 2, 'primary'),
-            ('الصف الثالث الابتدائي', 3, 'primary'),
-            ('الصف الرابع الابتدائي', 4, 'primary'),
-            ('الصف الخامس الابتدائي', 5, 'primary'),
-            ('الصف السادس الابتدائي', 6, 'primary'),
-            # Middle
-            ('الصف الأول المتوسط', 7, 'middle'),
-            ('الصف الثاني المتوسط', 8, 'middle'),
-            ('الصف الثالث المتوسط', 9, 'middle'),
-            # Secondary
-            ('الصف الأول الثانوي', 10, 'secondary'),
-            ('الصف الثاني الثانوي', 11, 'secondary'),
-            ('الصف الثالث الثانوي', 12, 'secondary'),
+            # Primary (6 grades)
+            ('السنة الأولى ابتدائي', 1, 'primary'),
+            ('السنة الثانية ابتدائي', 2, 'primary'),
+            ('السنة الثالثة ابتدائي', 3, 'primary'),
+            ('السنة الرابعة ابتدائي', 4, 'primary'),
+            ('السنة الخامسة ابتدائي', 5, 'primary'),
+            ('السنة السادسة ابتدائي', 6, 'primary'),
+            # Middle (3 grades)
+            ('السنة السابعة أساسي', 7, 'middle'),
+            ('السنة الثامنة أساسي', 8, 'middle'),
+            ('السنة التاسعة أساسي', 9, 'middle'),
+            # Secondary (3 grades)
+            ('السنة الأولى ثانوي', 10, 'secondary'),
+            ('السنة الثانية ثانوي', 11, 'secondary'),
+            ('السنة الثالثة ثانوي', 12, 'secondary'),
         ]
 
         grades = []
@@ -241,16 +265,16 @@ class Command(BaseCommand):
     def create_teachers(self, school, count):
         """Create teacher profiles"""
         arabic_first_names_male = [
-            'محمد', 'أحمد', 'عبدالله', 'علي', 'حسن', 'عمر', 'يوسف', 'إبراهيم',
-            'خالد', 'سعد', 'فهد', 'عبدالرحمن', 'ماجد', 'طارق', 'نواف', 'بندر'
+            'محمد', 'أحمد', 'علي', 'حسن', 'عمر', 'يوسف', 'إبراهيم',
+            'خالد', 'سعيد', 'كريم', 'رضا', 'منير', 'طارق', 'أمين', 'ياسين'
         ]
         arabic_first_names_female = [
             'فاطمة', 'عائشة', 'خديجة', 'مريم', 'نور', 'سارة', 'هند', 'أميرة',
-            'رانيا', 'لولوة', 'منى', 'سمية', 'ليلى', 'دانة', 'جواهر', 'نورا'
+            'رانيا', 'زينب', 'منى', 'سمية', 'ليلى', 'آمال', 'سلمى', 'نورا'
         ]
         arabic_last_names = [
-            'العبدالله', 'الأحمد', 'المحمد', 'الخالد', 'السعد', 'الحسن',
-            'العلي', 'الحمد', 'السلمان', 'الفهد', 'الرشيد', 'القحطاني'
+            'بن علي', 'بن صالح', 'بن محمد', 'بن يوسف', 'بن حسن', 'بن عمر',
+            'بن إبراهيم', 'بن عبدالله', 'بن مبروك', 'بن حسين', 'بن الطاهر', 'بن عيسى'
         ]
         subjects = [
             'اللغة العربية', 'الرياضيات', 'العلوم', 'التربية الإسلامية',
@@ -304,8 +328,8 @@ class Command(BaseCommand):
     def create_employees(self, school):
         """Create employee profiles"""
         arabic_names = [
-            ('سلمان', 'الرشيد'), ('نايف', 'العتيبي'), ('بدر', 'الغامدي'),
-            ('هناء', 'الشهري'), ('أمل', 'القرشي'), ('وفاء', 'الزهراني')
+            ('سليمان', 'بن رشيد'), ('منصف', 'بن عيسى'), ('بدر', 'بن مبروك'),
+            ('هناء', 'بن صالح'), ('أمل', 'بن القاسم'), ('وفاء', 'بن زيد')
         ]
 
         employees = []
@@ -367,17 +391,17 @@ class Command(BaseCommand):
     def create_students_and_guardians(self, school, classes, student_count):
         """Create students and their guardians"""
         arabic_first_names_male = [
-            'عبدالله', 'محمد', 'أحمد', 'فيصل', 'سلطان', 'نايف', 'بندر',
-            'سعد', 'فهد', 'خالد', 'عمر', 'حمد', 'تركي', 'مشعل', 'راشد'
+            'محمد', 'أحمد', 'علي', 'حسن', 'يوسف', 'عمر', 'إبراهيم',
+            'سعيد', 'كريم', 'خالد', 'أمين', 'ياسين', 'طارق', 'منير', 'رضا'
         ]
         arabic_first_names_female = [
-            'نوف', 'سارة', 'ريم', 'لمى', 'غادة', 'هيا', 'دانة', 'جود',
-            'لين', 'رند', 'شهد', 'أسيل', 'روان', 'تالا', 'جنى', 'لميس'
+            'فاطمة', 'سارة', 'مريم', 'نور', 'ليلى', 'هند', 'آمال', 'رانيا',
+            'زينب', 'سلمى', 'أميرة', 'خديجة', 'منى', 'نادية', 'سمية'
         ]
         arabic_family_names = [
-            'العبدالله', 'الأحمد', 'المحمد', 'الخالد', 'السعد', 'الحسن',
-            'العلي', 'الحمد', 'السلمان', 'الفهد', 'الرشيد', 'القحطاني',
-            'الغامدي', 'الشهري', 'الزهراني', 'العتيبي', 'الحارثي', 'المالكي'
+            'بن علي', 'بن صالح', 'بن محمد', 'بن يوسف', 'بن حسن', 'بن عمر',
+            'بن إبراهيم', 'بن عبدالله', 'بن مبروك', 'بن حسين', 'بن الطاهر', 'بن عيسى',
+            'بن سعيد', 'بن خليفة', 'بن رشيد', 'بن منصور', 'بن كريم', 'بن حمدي'
         ]
 
         for i in range(student_count):
@@ -409,10 +433,10 @@ class Command(BaseCommand):
                 sex='male' if is_male else 'female',
                 date_of_birth=birth_date,
                 place_of_birth=random.choice([
-                    'الرياض', 'جدة', 'مكة المكرمة', 'الدمام', 'المدينة المنورة'
+                    'تونس', 'صفاقس', 'سوسة', 'القيروان', 'بنزرت', 'قابس'
                 ]),
-                phone=f'05{random.randint(10000000, 99999999)}',
-                address=f'حي {random.choice(["النرجس", "الملقا", "الصحافة", "الورود"])}, الرياض',
+                phone=f'2{random.randint(10000000, 99999999)}',
+                address=f'حي {random.choice(["المنار", "الخضراء", "النصر", "السعادة"])}, تونس',
                 enrollment_date=current_class.academic_year.start_date,
                 is_active=True
             )
@@ -424,40 +448,50 @@ class Command(BaseCommand):
             self.create_timeline_entries(student)
 
     def create_guardians_for_student(self, student):
-        """Create father and mother guardians for student"""
+        """Create father and optionally mother guardians for student"""
         arabic_father_names = [
-            'أحمد', 'محمد', 'عبدالله', 'علي', 'حسن', 'عمر', 'يوسف',
-            'خالد', 'سعد', 'فهد', 'عبدالرحمن', 'ماجد', 'طارق'
+            'محمد', 'أحمد', 'علي', 'حسن', 'عمر', 'يوسف', 'إبراهيم',
+            'خالد', 'سعيد', 'كريم', 'رضا', 'منير', 'طارق', 'أمين'
         ]
         arabic_mother_names = [
             'فاطمة', 'عائشة', 'خديجة', 'مريم', 'نور', 'سارة', 'هند',
-            'أميرة', 'رانيا', 'منى', 'سمية', 'ليلى', 'نورا'
+            'أميرة', 'رانيا', 'منى', 'سمية', 'ليلى', 'نادية', 'زينب'
         ]
 
-        # Create father
+        # Create father - always
         father_name = random.choice(arabic_father_names)
+        father_phone = f'2{random.randint(10000000, 99999999)}'
+
         father = Guardian.objects.create(
             school=student.school,
             first_name=father_name,
             last_name=student.last_name,
-            phone=f'05{random.randint(10000000, 99999999)}',
-            email=f'{father_name.lower()}.{student.last_name.lower()}@gmail.com',
-            nid=f'1{random.randint(100000000, 999999999)}',
+            phone=father_phone,
+            email=f'{father_name.lower()}.{student.student_id.lower()}@gmail.com',
+            nid=f'0{random.randint(1000000, 9999999)}',
             address=student.address
         )
 
-        # Create mother
-        mother_name = random.choice(arabic_mother_names)
-        mother = Guardian.objects.create(
-            school=student.school,
-            first_name=mother_name,
-            last_name=random.choice(['الأحمد', 'المحمد', 'الخالد', 'السعد']),
-            phone=f'05{random.randint(10000000, 99999999)}',
-            email=f'{mother_name.lower()}.mother@gmail.com',
-            address=student.address
+        # Create user for father - using phone as username
+        user_father = User.objects.create(
+            username=father_phone,
+            email=father.email,
+            first_name=father.first_name,
+            last_name=father.last_name,
+            user_type=User.GUARDIAN,
+            phone=father.phone,
+            is_active=True,
+            language='ar'
         )
+        user_father.set_password('Test@123')
+        user_father.save()
 
-        # Create relationships
+        # Link father to user
+        father.user = user_father
+        father.selected_student = student
+        father.save()
+
+        # Create father-student relationship
         GuardianStudent.objects.create(
             guardian=father,
             student=student,
@@ -465,24 +499,55 @@ class Command(BaseCommand):
             is_primary=True,
             is_emergency_contact=True,
             can_pickup=True,
-            can_receive_notifications=True
+            can_receive_notifications=True,
         )
 
-        GuardianStudent.objects.create(
-            guardian=mother,
-            student=student,
-            relationship='mother',
-            is_primary=False,
-            is_emergency_contact=True,
-            can_pickup=True,
-            can_receive_notifications=True
-        )
+        # Create mother randomly (70% chance)
+        if random.random() < 0.7:
+            mother_name = random.choice(arabic_mother_names)
+            mother_last_name = random.choice([
+                'بن علي', 'بن صالح', 'بن محمد', 'بن يوسف', 'بن حسن', 'بن عمر'
+            ])
+            mother_phone = f'2{random.randint(10000000, 99999999)}'
 
-        # Set father as selected student for both guardians
-        father.selected_student = student
-        father.save()
-        mother.selected_student = student
-        mother.save()
+            mother = Guardian.objects.create(
+                school=student.school,
+                first_name=mother_name,
+                last_name=mother_last_name,
+                phone=mother_phone,
+                email=f'{mother_name.lower()}.{student.student_id.lower()}m@gmail.com',
+                address=student.address
+            )
+
+            # Create user for mother - using phone as username
+            user_mother = User.objects.create(
+                username=mother_phone,
+                email=mother.email,
+                first_name=mother.first_name,
+                last_name=mother.last_name,
+                user_type=User.GUARDIAN,
+                phone=mother.phone,
+                is_active=True,
+                language='ar'
+            )
+            user_mother.set_password('Test@123')
+            user_mother.save()
+
+            # Link mother to user
+            mother.user = user_mother
+            mother.selected_student = student
+            mother.save()
+
+            # Create mother-student relationship
+            GuardianStudent.objects.create(
+                guardian=mother,
+                student=student,
+                relationship='mother',
+                is_primary=False,
+                is_emergency_contact=True,
+                can_pickup=True,
+                can_receive_notifications=True
+            )
 
     def create_timeline_entries(self, student):
         """Create timeline entries for student"""

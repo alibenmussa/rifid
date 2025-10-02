@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        تأكيد الحذف
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h6>تحذير!</h6>
+                        <p class="mb-0">هذا الإجراء لا يمكن التراجع عنه. سيتم حذف جميع البيانات المرتبطة بهذا الصف نهائياً.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6>معلومات الصف المراد حذفه:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>اسم الصف:</strong> {{ grade.name }}</li>
+                            <li><strong>نوع المرحلة:</strong> {{ grade.get_grade_type_display }}</li>
+                            <li><strong>المستوى:</strong> {{ grade.level }}</li>
+                            <li><strong>المدرسة:</strong> {{ grade.school.name }}</li>
+                        </ul>
+                    </div>
+
+                    {% if student_count > 0 %}
+                        <div class="alert alert-danger">
+                            <h6>لا يمكن حذف هذا الصف!</h6>
+                            <p class="mb-0">يحتوي هذا الصف على {{ student_count }} طالب. يجب نقل أو حذف جميع الطلاب أولاً.</p>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <a href="{% url 'dashboard:grade_detail' grade.id %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> العودة
+                            </a>
+                        </div>
+                    {% else %}
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'dashboard:grade_detail' grade.id %}" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> إلغاء
+                                </a>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="bi bi-trash"></i> تأكيد الحذف
+                                </button>
+                            </div>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}

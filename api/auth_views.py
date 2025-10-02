@@ -204,11 +204,8 @@ class RegistrationCompleteView(APIView):
             'success': True,
             'message': 'تم التسجيل بنجاح',
             'token': token.key,
-            'guardian': GuardianSerializer(guardian).data,
-            'selected_student': StudentOptionSerializer(
-                selected_student,
-                context={'selected_id': selected_student.id if selected_student else None}
-            ).data if selected_student else None,
+            'guardian': guardian,
+            'selected_student': selected_student,
             'has_multiple_students': students_count > 1,
             'students_count': students_count,
         }
@@ -261,7 +258,6 @@ class AuthLoginView(APIView):
         # Check if guardian has students
         students_qs = guardian.students.all().order_by("last_name", "first_name")
         students_count = students_qs.count()
-        print(students_count)
 
         if students_count == 0:
             return Response(
@@ -286,7 +282,6 @@ class AuthLoginView(APIView):
             "students_count": students_count,
         }
 
-
         output_serializer = AuthLoginOutputSerializer(response_data)
-        print(output_serializer.data)
+
         return Response(output_serializer.data, status=status.HTTP_200_OK)

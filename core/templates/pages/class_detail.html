@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+    <div class="row">
+        <!-- Class Information -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">معلومات الفصل</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">اسم الفصل</label>
+                                <p class="fw-bold">{{ school_class.full_name }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">الصف الدراسي</label>
+                                <p class="fw-bold">
+                                    <a href="{% url 'dashboard:grade_detail' school_class.grade.id %}" class="text-decoration-none">
+                                        {{ school_class.grade.name }}
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">السنة الدراسية</label>
+                                <p class="fw-bold">{{ school_class.academic_year.name }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">المعلم المسؤول</label>
+                                <p class="fw-bold">
+                                    {% if school_class.class_teacher %}
+                                        {{ school_class.class_teacher.get_display_name }}
+                                    {% else %}
+                                        <span class="text-muted">غير محدد</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">السعة القصوى</label>
+                                <p class="fw-bold">{{ school_class.capacity }} طالب</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">الشعبة</label>
+                                <p class="fw-bold">
+                                    {% if school_class.section %}
+                                        {{ school_class.section }}
+                                    {% else %}
+                                        <span class="text-muted">غير محدد</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">المدرسة</label>
+                                <p class="fw-bold">{{ school_class.school.name }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">الحالة</label>
+                                {% if school_class.is_active %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">غير نشط</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Timeline -->
+            {% if recent_timeline %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">آخر الأنشطة</h5>
+                </div>
+                <div class="card-body">
+                    {% for timeline in recent_timeline %}
+                        <div class="d-flex mb-3 pb-3 border-bottom">
+                            <div class="flex-shrink-0">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center"
+                                     style="width: 40px; height: 40px;">
+                                    <i class="bi bi-person"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">
+                                    <a href="{% url 'dashboard:student_detail' timeline.student.id %}" class="text-decoration-none">
+                                        {{ timeline.student.full_name }}
+                                    </a>
+                                </h6>
+                                <p class="mb-1">{{ timeline.title|default:timeline.note|truncatewords:10 }}</p>
+                                <small class="text-muted">
+                                    بواسطة {{ timeline.created_by.get_display_name }} - {{ timeline.created_at|timesince }}
+                                </small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Statistics -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">الإحصائيات</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-12 mb-3">
+                            <h3 class="text-primary">{{ stats.total_students }}</h3>
+                            <p class="text-muted mb-0">عدد الطلاب</p>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h4 class="text-info">{{ stats.male_students }}</h4>
+                                <p class="text-muted mb-0">ذكور</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h4 class="text-pink">{{ stats.female_students }}</h4>
+                                <p class="text-muted mb-0">إناث</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="progress mb-2" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar"
+                                     style="width: {{ stats.occupancy_rate }}%">
+                                    {{ stats.occupancy_rate|floatformat:1 }}%
+                                </div>
+                            </div>
+                            <p class="text-muted mb-0">نسبة الإشغال</p>
+                            <small class="text-muted">{{ stats.available_seats }} مقعد متاح</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Students Table -->
+    {% if students %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">قائمة الطلاب</h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-2">
+                            <i class="bi bi-printer"></i> طباعة
+                        </button>
+                        <button class="btn btn-sm btn-success">
+                            <i class="bi bi-person-plus"></i> إضافة طالب
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الرقم الجامعي</th>
+                                    <th>اسم الطالب</th>
+                                    <th>الجنس</th>
+                                    <th>تاريخ الميلاد</th>
+                                    <th>رقم الهاتف</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ student.student_id }}</td>
+                                    <td>
+                                        <a href="{% url 'dashboard:student_detail' student.id %}" class="text-decoration-none">
+                                            {{ student.full_name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if student.sex == 'male' %}
+                                            <span class="badge bg-primary">ذكر</span>
+                                        {% else %}
+                                            <span class="badge bg-pink">أنثى</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ student.date_of_birth|default:"—" }}</td>
+                                    <td>{{ student.phone|default:"—" }}</td>
+                                    <td>
+                                        <a href="{% url 'dashboard:student_detail' student.id %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock body %}
+
+{% block scripts %}
+<script>
+function confirmDelete(url, name) {
+    if (confirm(`هل أنت متأكد من حذف ${name}؟`)) {
+        window.location.href = url;
+    }
+}
+</script>
+{% endblock scripts %}

@@ -1,6 +1,6 @@
 # core/views.py - Enhanced with school context and better UI
 from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
@@ -13,15 +13,17 @@ from django_tables2 import RequestConfig
 
 from core.forms import (
     GuardianWithStudentForm, StudentForm, StudentTimelineForm,
-    StudentSearchForm, GuardianStudentForm
+    StudentSearchForm, GuardianStudentForm, GradeForm, SchoolClassForm,
+    AcademicYearForm
 )
 from core.models import (
     School, Guardian, Student, GuardianStudent,
     StudentTimeline, StudentTimelineAttachment,
-    Grade, SchoolClass
+    Grade, SchoolClass, AcademicYear
 )
 from core.tables import (
-    EmployeeTable, GuardianTable, GuardianStudentTable, StudentTable
+    EmployeeTable, GuardianTable, GuardianStudentTable, StudentTable,
+    GradeTable, SchoolClassTable
 )
 
 User = get_user_model()
@@ -128,7 +130,6 @@ def dashboard(request):
 # ==========================================
 
 @login_required
-@permission_required('core.view_guardian', raise_exception=True)
 def guardian_list(request):
     """Enhanced guardian list with school context and search"""
     school = getattr(request, 'school', None)
@@ -202,7 +203,6 @@ def guardian_list(request):
 
 
 @login_required
-@permission_required('core.add_guardian', raise_exception=True)
 def guardian_create_form(request):
     """Enhanced guardian creation with school context"""
     school = getattr(request, 'school', None)
@@ -237,7 +237,6 @@ def guardian_create_form(request):
 
 
 @login_required
-@permission_required('core.view_guardian', raise_exception=True)
 def guardian_detail(request, guardian_id: int):
     """Enhanced guardian detail view with comprehensive information"""
     guardian = get_object_or_404(
@@ -324,10 +323,10 @@ def students_list(request):
     school = getattr(request, 'school', None)
     user = request.user
 
-    print(school)
-
     # Determine queryset based on user role
-    if user.has_perm("core.view_student"):
+    if (user.is_staff or
+        (hasattr(user, 'teacher_profile') and user.teacher_profile) or
+        (hasattr(user, 'employee_profile') and user.employee_profile)):
         if school:
             queryset = Student.objects.filter(school=school)
             title = f"طلاب {school.name}"
@@ -337,13 +336,6 @@ def students_list(request):
     elif hasattr(user, 'guardian') and user.guardian:
         queryset = user.guardian.students.all()
         title = "أطفالي"
-    elif hasattr(user, 'teacher_profile') and user.teacher_profile:
-        if school:
-            queryset = Student.objects.filter(school=school)
-            title = f"طلاب {school.name}"
-        else:
-            queryset = Student.objects.none()
-            title = "الطلاب"
     else:
         raise PermissionDenied('ليس لديك صلاحية لعرض الطلاب.')
 
@@ -602,7 +594,6 @@ def student_form(request, guardian_id=None, student_id=None):
 # ==========================================
 
 @login_required
-@permission_required('accounts.view_user', raise_exception=True)
 def employee_list(request):
     """Enhanced employee list with school context"""
     school = getattr(request, 'school', None)
@@ -657,21 +648,595 @@ def employee_detail(request, pk):
 
 
 # ==========================================
+# GRADE MANAGEMENT VIEWS
+# ==========================================
+
+@login_required
+def grade_list(request):
+    """Enhanced grade list with school context"""
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    if not school and not user.is_superuser:
+        messages.error(request, 'لا يمكن الوصول إلى هذه الصفحة بدون تحديد المدرسة.')
+        return redirect('dashboard:dashboard')
+
+    # Build queryset based on user permissions
+    if user.is_superuser:
+        queryset = Grade.objects.all()
+        title = "جميع الصفوف الدراسية"
+    else:
+        queryset = Grade.objects.filter(school=school)
+        title = f"صفوف {school.name}"
+
+    # Add related data and statistics
+    queryset = queryset.select_related('school').annotate(
+        classes_count=Count('classes', filter=Q(classes__is_active=True)),
+        students_count=Count('classes__students', filter=Q(classes__students__is_active=True))
+    ).order_by('grade_type', 'level')
+
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        queryset = queryset.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query)
+        )
+
+    # Filter by grade type
+    grade_type = request.GET.get('grade_type', '')
+    if grade_type:
+        queryset = queryset.filter(grade_type=grade_type)
+
+    # Pagination
+    paginator = Paginator(queryset, 20)
+    page_number = request.GET.get('page')
+    grades = paginator.get_page(page_number)
+
+    # Grade types for filter
+    grade_types = Grade.GRADE_TYPES
+
+    # Table
+    table = GradeTable(grades)
+    RequestConfig(request, paginate={"per_page": 20}).configure(table)
+
+    context = {
+        'table': table,
+        'grades': grades,
+        'search_query': search_query,
+        'grade_type': grade_type,
+        'grade_types': grade_types,
+        'total_count': queryset.count(),
+        'school': school,
+        'bar': {
+            'main': True,
+            'title': title,
+            'subtitle': f'إدارة الصفوف الدراسية - {queryset.count()} صف',
+            'count': {
+                'total': queryset.count(),
+                'label': 'صف دراسي'
+            },
+            'buttons': [
+                {
+                    'icon': 'bi bi-plus',
+                    'label': 'إضافة صف',
+                    'url': reverse('dashboard:grade_create'),
+                    'color': 'btn-primary'
+                } if user.is_staff else None,
+                {
+                    'icon': 'bi bi-download',
+                    'label': 'تصدير',
+                    'color': 'btn-outline-secondary'
+                }
+            ]
+        }
+    }
+
+    return render(request, 'pages/grade_list.html', context)
+
+
+@login_required
+def grade_create(request):
+    """Create new grade with school context"""
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    if not school and not user.is_superuser:
+        messages.error(request, 'لا يمكن إنشاء صف بدون تحديد المدرسة.')
+        return redirect('dashboard:grade_list')
+
+    if request.method == 'POST':
+        form = GradeForm(request.POST, school=school)
+        if form.is_valid():
+            try:
+                grade = form.save(commit=False)
+                if school:
+                    grade.school = school
+                grade.save()
+                messages.success(request, f'تم إنشاء الصف "{grade.name}" بنجاح.')
+                return redirect('dashboard:grade_detail', grade_id=grade.id)
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء الحفظ: {str(e)}')
+    else:
+        form = GradeForm(school=school)
+
+    context = {
+        'form': form,
+        'school': school,
+        'bar': {
+            'title': 'إضافة صف دراسي',
+            'subtitle': f'إضافة صف جديد في {school.name}' if school else 'إضافة صف دراسي جديد',
+            'back': reverse('dashboard:grade_list'),
+        }
+    }
+    return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def grade_edit(request, grade_id):
+    """Edit existing grade"""
+    grade = get_object_or_404(Grade, pk=grade_id)
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Permission check
+    if school and grade.school != school and not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لتعديل هذا الصف.')
+
+    if request.method == 'POST':
+        form = GradeForm(request.POST, instance=grade, school=grade.school)
+        if form.is_valid():
+            try:
+                grade = form.save()
+                messages.success(request, f'تم تحديث الصف "{grade.name}" بنجاح.')
+                return redirect('dashboard:grade_detail', grade_id=grade.id)
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء الحفظ: {str(e)}')
+    else:
+        form = GradeForm(instance=grade, school=grade.school)
+
+    context = {
+        'form': form,
+        'grade': grade,
+        'school': grade.school,
+        'bar': {
+            'title': f'تعديل الصف: {grade.name}',
+            'subtitle': f'{grade.school.name}',
+            'back': reverse('dashboard:grade_detail', args=[grade.id]),
+        }
+    }
+    return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def grade_detail(request, grade_id):
+    """Enhanced grade detail view with classes and statistics"""
+    grade = get_object_or_404(
+        Grade.objects.select_related('school').prefetch_related(
+            'classes__academic_year',
+            'classes__students'
+        ),
+        pk=grade_id
+    )
+
+    # Permission check
+    school = getattr(request, 'school', None)
+    user = request.user
+    if school and grade.school != school and not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لعرض هذا الصف.')
+
+    # Classes in this grade
+    classes = grade.classes.filter(is_active=True).select_related(
+        'academic_year', 'class_teacher'
+    ).annotate(
+        students_count=Count('students', filter=Q(students__is_active=True))
+    ).order_by('academic_year__name', 'name')
+
+    # Statistics
+    stats = {
+        'total_classes': classes.count(),
+        'total_students': sum(cls.students_count for cls in classes),
+        'active_classes': classes.filter(is_active=True).count(),
+        'capacity': sum(cls.capacity for cls in classes),
+    }
+
+    # Academic years with classes in this grade
+    academic_years = AcademicYear.objects.filter(
+        school=grade.school,
+        classes__grade=grade,
+        classes__is_active=True
+    ).distinct().order_by('-start_date')
+
+    context = {
+        'grade': grade,
+        'classes': classes,
+        'stats': stats,
+        'academic_years': academic_years,
+        'bar': {
+            'title': f'الصف: {grade.name}',
+            'subtitle': f'{grade.get_grade_type_display()} - {grade.school.name}',
+            'back': reverse('dashboard:grade_list'),
+            'buttons': [
+                {
+                    'icon': 'bi bi-pencil',
+                    'label': 'تعديل',
+                    'url': reverse('dashboard:grade_edit', args=[grade.id]),
+                    'color': 'btn-primary'
+                } if user.is_staff else None,
+                {
+                    'icon': 'bi bi-plus',
+                    'label': 'إضافة فصل',
+                    'url': reverse('dashboard:class_create') + f'?grade={grade.id}',
+                    'color': 'btn-success'
+                } if user.is_staff else None,
+                {
+                    'icon': 'bi bi-trash',
+                    'label': 'حذف',
+                    'url': '#',
+                    'color': 'btn-danger',
+                    'onclick': f'confirmDelete("{reverse("dashboard:grade_delete", args=[grade.id])}", "الصف {grade.name}")'
+                } if user.is_staff and stats['total_students'] == 0 else None
+            ]
+        }
+    }
+
+    return render(request, 'pages/grade_detail.html', context)
+
+
+@login_required
+def grade_delete(request, grade_id):
+    """Delete grade (only if no students)"""
+    grade = get_object_or_404(Grade, pk=grade_id)
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Permission check
+    if school and grade.school != school and not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لحذف هذا الصف.')
+
+    # Check if grade has students
+    student_count = Student.objects.filter(current_class__grade=grade, is_active=True).count()
+    if student_count > 0:
+        messages.error(request, f'لا يمكن حذف الصف "{grade.name}" لأنه يحتوي على {student_count} طالب.')
+        return redirect('dashboard:grade_detail', grade_id=grade.id)
+
+    if request.method == 'POST':
+        grade_name = grade.name
+        grade.delete()
+        messages.success(request, f'تم حذف الصف "{grade_name}" بنجاح.')
+        return redirect('dashboard:grade_list')
+
+    context = {
+        'grade': grade,
+        'student_count': student_count,
+        'bar': {
+            'title': f'حذف الصف: {grade.name}',
+            'back': reverse('dashboard:grade_detail', args=[grade.id]),
+        }
+    }
+    return render(request, 'pages/grade_delete.html', context)
+
+
+# ==========================================
+# SCHOOL CLASS MANAGEMENT VIEWS
+# ==========================================
+
+@login_required
+def class_list(request):
+    """Enhanced school class list with filtering"""
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    if not school and not user.is_superuser:
+        messages.error(request, 'لا يمكن الوصول إلى هذه الصفحة بدون تحديد المدرسة.')
+        return redirect('dashboard:dashboard')
+
+    # Build queryset
+    if user.is_superuser:
+        queryset = SchoolClass.objects.all()
+        title = "جميع الفصول الدراسية"
+    else:
+        queryset = SchoolClass.objects.filter(school=school)
+        title = f"فصول {school.name}"
+
+    # Add related data
+    queryset = queryset.select_related(
+        'school', 'grade', 'academic_year', 'class_teacher'
+    ).annotate(
+        students_count=Count('students', filter=Q(students__is_active=True))
+    ).order_by('grade__grade_type', 'grade__level', 'name')
+
+    # Filtering
+    search_query = request.GET.get('search', '')
+    if search_query:
+        queryset = queryset.filter(
+            Q(name__icontains=search_query) |
+            Q(grade__name__icontains=search_query) |
+            Q(class_teacher__first_name__icontains=search_query) |
+            Q(class_teacher__last_name__icontains=search_query)
+        )
+
+    grade_id = request.GET.get('grade', '')
+    if grade_id:
+        queryset = queryset.filter(grade_id=grade_id)
+
+    academic_year_id = request.GET.get('academic_year', '')
+    if academic_year_id:
+        queryset = queryset.filter(academic_year_id=academic_year_id)
+
+    is_active = request.GET.get('is_active', '')
+    if is_active in ['True', 'False']:
+        queryset = queryset.filter(is_active=is_active == 'True')
+
+    # Pagination
+    paginator = Paginator(queryset, 20)
+    page_number = request.GET.get('page')
+    classes = paginator.get_page(page_number)
+
+    # Filter options
+    if school:
+        grades = Grade.objects.filter(school=school, is_active=True).order_by('grade_type', 'level')
+        academic_years = AcademicYear.objects.filter(school=school).order_by('-start_date')
+    else:
+        grades = Grade.objects.filter(is_active=True).order_by('school__name', 'grade_type', 'level')
+        academic_years = AcademicYear.objects.all().order_by('school__name', '-start_date')
+
+    # Table
+    table = SchoolClassTable(classes)
+    RequestConfig(request, paginate={"per_page": 20}).configure(table)
+
+    context = {
+        'table': table,
+        'classes': classes,
+        'search_query': search_query,
+        'grade_id': grade_id,
+        'academic_year_id': academic_year_id,
+        'is_active': is_active,
+        'grades': grades,
+        'academic_years': academic_years,
+        'total_count': queryset.count(),
+        'school': school,
+        'bar': {
+            'main': True,
+            'title': title,
+            'subtitle': f'إدارة الفصول الدراسية - {queryset.count()} فصل',
+            'count': {
+                'total': queryset.count(),
+                'label': 'فصل دراسي'
+            },
+            'buttons': [
+                {
+                    'icon': 'bi bi-plus',
+                    'label': 'إضافة فصل',
+                    'url': reverse('dashboard:class_create'),
+                    'color': 'btn-primary'
+                } if user.is_staff else None,
+                {
+                    'icon': 'bi bi-download',
+                    'label': 'تصدير',
+                    'color': 'btn-outline-secondary'
+                }
+            ]
+        }
+    }
+
+    return render(request, 'pages/class_list.html', context)
+
+
+@login_required
+def class_create(request):
+    """Create new school class"""
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    if not school and not user.is_superuser:
+        messages.error(request, 'لا يمكن إنشاء فصل بدون تحديد المدرسة.')
+        return redirect('dashboard:class_list')
+
+    # Pre-select grade if provided
+    grade_id = request.GET.get('grade')
+    initial_data = {}
+    if grade_id:
+        try:
+            grade = Grade.objects.get(id=grade_id, school=school)
+            initial_data['grade'] = grade
+        except Grade.DoesNotExist:
+            pass
+
+    if request.method == 'POST':
+        form = SchoolClassForm(request.POST, school=school)
+        if form.is_valid():
+            try:
+                school_class = form.save(commit=False)
+                if school:
+                    school_class.school = school
+                school_class.save()
+                messages.success(request, f'تم إنشاء الفصل "{school_class.full_name}" بنجاح.')
+                return redirect('dashboard:class_detail', class_id=school_class.id)
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء الحفظ: {str(e)}')
+    else:
+        form = SchoolClassForm(initial=initial_data, school=school)
+
+    context = {
+        'form': form,
+        'school': school,
+        'bar': {
+            'title': 'إضافة فصل دراسي',
+            'subtitle': f'إضافة فصل جديد في {school.name}' if school else 'إضافة فصل دراسي جديد',
+            'back': reverse('dashboard:class_list'),
+        }
+    }
+    return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def class_edit(request, class_id):
+    """Edit existing school class"""
+    school_class = get_object_or_404(SchoolClass, pk=class_id)
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Permission check
+    if school and school_class.school != school and not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لتعديل هذا الفصل.')
+
+    if request.method == 'POST':
+        form = SchoolClassForm(request.POST, instance=school_class, school=school_class.school)
+        if form.is_valid():
+            try:
+                school_class = form.save()
+                messages.success(request, f'تم تحديث الفصل "{school_class.full_name}" بنجاح.')
+                return redirect('dashboard:class_detail', class_id=school_class.id)
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء الحفظ: {str(e)}')
+    else:
+        form = SchoolClassForm(instance=school_class, school=school_class.school)
+
+    context = {
+        'form': form,
+        'school_class': school_class,
+        'school': school_class.school,
+        'bar': {
+            'title': f'تعديل الفصل: {school_class.full_name}',
+            'subtitle': f'{school_class.school.name}',
+            'back': reverse('dashboard:class_detail', args=[school_class.id]),
+        }
+    }
+    return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def class_detail(request, class_id):
+    """Enhanced school class detail view"""
+    school_class = get_object_or_404(
+        SchoolClass.objects.select_related(
+            'school', 'grade', 'academic_year', 'class_teacher'
+        ).prefetch_related('students'),
+        pk=class_id
+    )
+
+    # Permission check
+    school = getattr(request, 'school', None)
+    user = request.user
+    if school and school_class.school != school and not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لعرض هذا الفصل.')
+
+    # Students in this class
+    students = school_class.students.filter(is_active=True).select_related(
+        'guardians'
+    ).prefetch_related('guardians').order_by('last_name', 'first_name')
+
+    # Statistics
+    stats = {
+        'total_students': students.count(),
+        'capacity': school_class.capacity,
+        'available_seats': school_class.capacity - students.count(),
+        'occupancy_rate': (students.count() / school_class.capacity * 100) if school_class.capacity > 0 else 0,
+        'male_students': students.filter(sex='male').count(),
+        'female_students': students.filter(sex='female').count(),
+    }
+
+    # Recent timeline activities for class students
+    recent_timeline = StudentTimeline.objects.filter(
+        student__current_class=school_class,
+        student__is_active=True
+    ).select_related('student', 'created_by').order_by('-created_at')[:10]
+
+    context = {
+        'school_class': school_class,
+        'students': students,
+        'stats': stats,
+        'recent_timeline': recent_timeline,
+        'bar': {
+            'title': f'الفصل: {school_class.full_name}',
+            'subtitle': f'{school_class.grade.get_grade_type_display()} - {school_class.school.name}',
+            'back': reverse('dashboard:class_list'),
+            'buttons': [
+                {
+                    'icon': 'bi bi-pencil',
+                    'label': 'تعديل',
+                    'url': reverse('dashboard:class_edit', args=[school_class.id]),
+                    'color': 'btn-primary'
+                } if user.is_staff else None,
+                {
+                    'icon': 'bi bi-person-plus',
+                    'label': 'إضافة طالب',
+                    'url': '#',
+                    'color': 'btn-success'
+                } if user.is_staff else None,
+                {
+                    'icon': 'bi bi-printer',
+                    'label': 'طباعة قائمة الطلاب',
+                    'color': 'btn-outline-secondary'
+                },
+                {
+                    'icon': 'bi bi-trash',
+                    'label': 'حذف',
+                    'url': '#',
+                    'color': 'btn-danger',
+                    'onclick': f'confirmDelete("{reverse("dashboard:class_delete", args=[school_class.id])}", "الفصل {school_class.full_name}")'
+                } if user.is_staff and stats['total_students'] == 0 else None
+            ]
+        }
+    }
+
+    return render(request, 'pages/class_detail.html', context)
+
+
+@login_required
+def class_delete(request, class_id):
+    """Delete school class (only if no students)"""
+    school_class = get_object_or_404(SchoolClass, pk=class_id)
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Permission check
+    if school and school_class.school != school and not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لحذف هذا الفصل.')
+
+    # Check if class has students
+    student_count = school_class.students.filter(is_active=True).count()
+    if student_count > 0:
+        messages.error(request, f'لا يمكن حذف الفصل "{school_class.full_name}" لأنه يحتوي على {student_count} طالب.')
+        return redirect('dashboard:class_detail', class_id=school_class.id)
+
+    if request.method == 'POST':
+        class_name = school_class.full_name
+        school_class.delete()
+        messages.success(request, f'تم حذف الفصل "{class_name}" بنجاح.')
+        return redirect('dashboard:class_list')
+
+    context = {
+        'school_class': school_class,
+        'student_count': student_count,
+        'bar': {
+            'title': f'حذف الفصل: {school_class.full_name}',
+            'back': reverse('dashboard:class_detail', args=[school_class.id]),
+        }
+    }
+    return render(request, 'pages/class_delete.html', context)
+
+
+# ==========================================
 # HELPER FUNCTIONS
 # ==========================================
 
 def _can_view_student(user, student, school=None):
     """Check if user can view specific student"""
-    if user.has_perm("core.view_student"):
+    # Staff, teachers, and employees can view students in their school
+    if (user.is_staff or
+        (hasattr(user, 'teacher_profile') and user.teacher_profile and
+         student.school == user.teacher_profile.school) or
+        (hasattr(user, 'employee_profile') and user.employee_profile and
+         student.school == user.employee_profile.school)):
         return True
 
+    # Guardians can view their own students
     if hasattr(user, "guardian") and user.guardian:
         return GuardianStudent.objects.filter(
             guardian=user.guardian, student=student
         ).exists()
-
-    if hasattr(user, "teacher_profile") and user.teacher_profile:
-        return student.school == user.teacher_profile.school
 
     return False
 

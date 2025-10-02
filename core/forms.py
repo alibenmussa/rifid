@@ -119,10 +119,12 @@ class SchoolClassForm(forms.ModelForm, SchoolContextMixin):
             self.fields['academic_year'].queryset = AcademicYear.objects.filter(
                 school=self.school
             )
-            # Filter teachers by school (if you have a teacher model)
-            # self.fields['class_teacher'].queryset = Teacher.objects.filter(
-            #     school=self.school, is_active=True
-            # )
+            # Filter teachers by school using User model with teacher_profile
+            from accounts.models import User
+            self.fields['class_teacher'].queryset = User.objects.filter(
+                teacher_profile__school=self.school,
+                teacher_profile__is_active=True
+            )
 
 
 class GuardianWithStudentForm(forms.Form, SchoolContextMixin):

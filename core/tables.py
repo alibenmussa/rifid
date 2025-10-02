@@ -1,7 +1,7 @@
 import django_tables2 as tables
 from django.contrib.auth import get_user_model
 
-from core.models import GuardianStudent, Guardian
+from core.models import GuardianStudent, Guardian, Grade, SchoolClass
 from rifid.utilities import TABLE_STYLE, Button
 
 
@@ -83,5 +83,66 @@ class StudentTable(tables.Table):
     class Meta:
         model = Student
         fields = ("full_name", "sex", "date_of_birth", "phone", "email")
+        template_name = TABLE_STYLE.get("template")
+        attrs = {"class": TABLE_STYLE.get("class")}
+
+
+class GradeTable(tables.Table):
+    """Table for displaying grades"""
+    name = tables.Column(verbose_name="اسم الصف")
+    grade_type = tables.Column(verbose_name="نوع المرحلة", accessor="get_grade_type_display")
+    level = tables.Column(verbose_name="المستوى")
+    classes_count = tables.Column(verbose_name="عدد الفصول", orderable=False)
+    students_count = tables.Column(verbose_name="عدد الطلاب", orderable=False)
+    is_active = tables.TemplateColumn(
+        '<span class="badge bg-success">نشط</span>'
+        '{% if not value %}<span class="badge bg-secondary">غير نشط</span>{% endif %}',
+        verbose_name="الحالة"
+    )
+    actions = tables.TemplateColumn(
+        Button(url="dashboard:grade_detail", params="record.id", icon="bi bi-eye", style="mx-2").render() +
+        Button(url="dashboard:grade_edit", params="record.id", icon="bi bi-pencil", style="mx-2").render(),
+        verbose_name="الإجراءات"
+    )
+
+    class Meta:
+        model = Grade
+        fields = ("name", "grade_type", "level", "classes_count", "students_count", "is_active")
+        template_name = TABLE_STYLE.get("template")
+        attrs = {"class": TABLE_STYLE.get("class")}
+
+
+class SchoolClassTable(tables.Table):
+    """Table for displaying school classes"""
+    full_name = tables.Column(verbose_name="اسم الفصل", accessor="full_name")
+    grade = tables.Column(verbose_name="الصف", accessor="grade.name")
+    academic_year = tables.Column(verbose_name="السنة الدراسية", accessor="academic_year.name")
+    class_teacher = tables.Column(
+        verbose_name="المعلم المسؤول",
+        accessor="class_teacher.get_display_name",
+        default="—"
+    )
+    capacity = tables.Column(verbose_name="السعة")
+    students_count = tables.Column(verbose_name="عدد الطلاب", orderable=False)
+    occupancy_rate = tables.TemplateColumn(
+        '{{ record.students_count|floatformat:0 }}/{{ record.capacity }} '
+        '({% widthratio record.students_count record.capacity 100 %}%)',
+        verbose_name="نسبة الإشغال",
+        orderable=False
+    )
+    is_active = tables.TemplateColumn(
+        '{% if value %}<span class="badge bg-success">نشط</span>'
+        '{% else %}<span class="badge bg-secondary">غير نشط</span>{% endif %}',
+        verbose_name="الحالة"
+    )
+    actions = tables.TemplateColumn(
+        Button(url="dashboard:class_detail", params="record.id", icon="bi bi-eye", style="mx-2").render() +
+        Button(url="dashboard:class_edit", params="record.id", icon="bi bi-pencil", style="mx-2").render(),
+        verbose_name="الإجراءات"
+    )
+
+    class Meta:
+        model = SchoolClass
+        fields = ("full_name", "grade", "academic_year", "class_teacher", "capacity", "students_count", "is_active")
         template_name = TABLE_STYLE.get("template")
         attrs = {"class": TABLE_STYLE.get("class")}

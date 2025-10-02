@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+    <div class="row">
+        <!-- Grade Information -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">معلومات الصف</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">اسم الصف</label>
+                                <p class="fw-bold">{{ grade.name }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">نوع المرحلة</label>
+                                <p class="fw-bold">{{ grade.get_grade_type_display }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">المستوى</label>
+                                <p class="fw-bold">{{ grade.level }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">المدرسة</label>
+                                <p class="fw-bold">{{ grade.school.name }}</p>
+                            </div>
+                        </div>
+                        {% if grade.description %}
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">الوصف</label>
+                                <p>{{ grade.description }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">الحالة</label>
+                                {% if grade.is_active %}
+                                    <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">غير نشط</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">الإحصائيات</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h3 class="text-primary">{{ stats.total_classes }}</h3>
+                                <p class="text-muted mb-0">عدد الفصول</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h3 class="text-success">{{ stats.total_students }}</h3>
+                                <p class="text-muted mb-0">عدد الطلاب</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h3 class="text-info">{{ stats.active_classes }}</h3>
+                                <p class="text-muted mb-0">الفصول النشطة</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <h3 class="text-warning">{{ stats.capacity }}</h3>
+                                <p class="text-muted mb-0">السعة الكلية</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Academic Years -->
+            {% if academic_years %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">السنوات الدراسية</h5>
+                </div>
+                <div class="card-body">
+                    {% for year in academic_years %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>{{ year.name }}</span>
+                            {% if year.is_current %}
+                                <span class="badge bg-primary">الحالية</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Classes Table -->
+    {% if classes %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">الفصول الدراسية</h5>
+                    <a href="{% url 'dashboard:class_create' %}?grade={{ grade.id }}" class="btn btn-sm btn-success">
+                        <i class="bi bi-plus"></i> إضافة فصل
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>اسم الفصل</th>
+                                    <th>السنة الدراسية</th>
+                                    <th>المعلم المسؤول</th>
+                                    <th>عدد الطلاب</th>
+                                    <th>السعة</th>
+                                    <th>نسبة الإشغال</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for class in classes %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'dashboard:class_detail' class.id %}" class="text-decoration-none">
+                                            {{ class.full_name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ class.academic_year.name }}</td>
+                                    <td>
+                                        {% if class.class_teacher %}
+                                            {{ class.class_teacher.get_display_name }}
+                                        {% else %}
+                                            <span class="text-muted">غير محدد</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ class.students_count }}</td>
+                                    <td>{{ class.capacity }}</td>
+                                    <td>
+                                        {% widthratio class.students_count class.capacity 100 %}%
+                                        <div class="progress mt-1" style="height: 4px;">
+                                            <div class="progress-bar" role="progressbar"
+                                                 style="width: {% widthratio class.students_count class.capacity 100 %}%">
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'dashboard:class_detail' class.id %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="{% url 'dashboard:class_edit' class.id %}"
+                                           class="btn btn-sm btn-outline-warning">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock body %}
+
+{% block scripts %}
+<script>
+function confirmDelete(url, name) {
+    if (confirm(`هل أنت متأكد من حذف ${name}؟`)) {
+        window.location.href = url;
+    }
+}
+</script>
+{% endblock scripts %}

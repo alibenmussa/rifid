@@ -1,0 +1,71 @@
+{% extends "components/list.html" %}
+{% load django_tables2 %}
+
+{% block content %}
+    <div class="col-12">
+        <!-- Search and Filters -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="search" class="form-label">البحث</label>
+                        <input type="text" class="form-control" id="search" name="search"
+                               value="{{ search_query }}" placeholder="ابحث في اسم الفصل أو المعلم...">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="grade" class="form-label">الصف</label>
+                        <select class="form-select" id="grade" name="grade">
+                            <option value="">جميع الصفوف</option>
+                            {% for grade_option in grades %}
+                                <option value="{{ grade_option.id }}" {% if grade_id == grade_option.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ grade_option.name }} - {{ grade_option.get_grade_type_display }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="academic_year" class="form-label">السنة الدراسية</label>
+                        <select class="form-select" id="academic_year" name="academic_year">
+                            <option value="">جميع السنوات</option>
+                            {% for year in academic_years %}
+                                <option value="{{ year.id }}" {% if academic_year_id == year.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ year.name }}
+                                    {% if year.is_current %} (الحالية){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="is_active" class="form-label">الحالة</label>
+                        <select class="form-select" id="is_active" name="is_active">
+                            <option value="">الكل</option>
+                            <option value="True" {% if is_active == "True" %}selected{% endif %}>نشط</option>
+                            <option value="False" {% if is_active == "False" %}selected{% endif %}>غير نشط</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        <a href="?" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card">
+            <div class="card-body">
+                {% if table.rows %}
+                    <div class="table-responsive">
+                        {% render_table table %}
+                    </div>
+                {% else %}
+                    {% include 'components/empty.html' %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

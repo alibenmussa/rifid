@@ -186,8 +186,7 @@ class GuardianSerializer(serializers.ModelSerializer, TimestampMixin):
 
     def get_children_count(self, obj):
         """Count guardian's children"""
-        return obj.guardianstudent_set.all()
-        # return obj.students.filter(is_active=True).count()
+        return obj.guardianstudent_set.filter(student__is_active=True).count()
 
 
 class StudentSerializer(serializers.ModelSerializer, TimestampMixin):
@@ -753,12 +752,19 @@ class AuthLoginOutputSerializer(serializers.Serializer):
 
     token = serializers.CharField(help_text="رمز المصادقة")
     guardian = GuardianSerializer(help_text="معلومات ولي الأمر")
-    selected_student = StudentOptionSerializer(
-        allow_null=True,
-        help_text="الطالب المختار حالياً"
-    )
+    selected_student = serializers.SerializerMethodField(help_text="الطالب المختار حالياً")
     has_multiple_students = serializers.BooleanField(help_text="يملك أكثر من طالب؟")
     students_count = serializers.IntegerField(help_text="عدد الأطفال")
+
+    def get_selected_student(self, obj):
+        """Serialize selected student with context"""
+        student = obj.get('selected_student')
+        if student:
+            return StudentOptionSerializer(
+                student,
+                context={'selected_id': student.id}
+            ).data
+        return None
 
 
 class RegistrationValidateCodeSerializer(serializers.Serializer):
@@ -891,10 +897,16 @@ class RegistrationCompleteOutputSerializer(serializers.Serializer):
     message = serializers.CharField(help_text="رسالة النتيجة")
     token = serializers.CharField(help_text="رمز المصادقة")
     guardian = GuardianSerializer(help_text="معلومات ولي الأمر")
-    selected_student = StudentOptionSerializer(
-        allow_null=True,
-        help_text="الطالب المختار"
-    )
+    selected_student = serializers.SerializerMethodField(help_text="الطالب المختار")
     has_multiple_students = serializers.BooleanField(help_text="يملك أكثر من طالب؟")
     students_count = serializers.IntegerField(help_text="عدد الأطفال")
-    school_info = SchoolBasicSerializer(help_text="معلومات المدرسة")
+
+    def get_selected_student(self, obj):
+        """Serialize selected student with context"""
+        student = obj.get('selected_student')
+        if student:
+            return StudentOptionSerializer(
+                student,
+                context={'selected_id': student.id}
+            ).data
+        return None

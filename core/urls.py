@@ -24,6 +24,22 @@ urlpatterns = [
         path("<int:student_id>/", views.student_detail, name="student_detail"),
     ])),
 
+    path("grades/", include([
+        path("", views.grade_list, name="grade_list"),
+        path("create/", views.grade_create, name="grade_create"),
+        path("<int:grade_id>/", views.grade_detail, name="grade_detail"),
+        path("<int:grade_id>/edit/", views.grade_edit, name="grade_edit"),
+        path("<int:grade_id>/delete/", views.grade_delete, name="grade_delete"),
+    ])),
+
+    path("classes/", include([
+        path("", views.class_list, name="class_list"),
+        path("create/", views.class_create, name="class_create"),
+        path("<int:class_id>/", views.class_detail, name="class_detail"),
+        path("<int:class_id>/edit/", views.class_edit, name="class_edit"),
+        path("<int:class_id>/delete/", views.class_delete, name="class_delete"),
+    ])),
+
     path("employees/", include(
         [
             path("", views.employee_list, name="employee_list"),
@@ -33,4 +49,12 @@ urlpatterns = [
             # path("delete/<int:pk>/", views.employee_delete, name="employee_delete"),
         ]
     )),
+
+    # AJAX endpoints
+    path("ajax/", include([
+        path("classes-by-grade/", views.get_classes_by_grade, name="ajax_classes_by_grade"),
+        path("students-by-class/", views.get_students_by_class, name="ajax_students_by_class"),
+        path("guardians/<int:guardian_id>/select-student/<int:student_id>/",
+             views.guardian_select_student, name="guardian_select_student"),
+    ])),
 ]
