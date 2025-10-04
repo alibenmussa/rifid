@@ -2,7 +2,7 @@ from crispy_forms.utils import render_crispy_form
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import transaction, models
 from django.http import HttpResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import render, get_object_or_404, redirect
@@ -24,7 +24,21 @@ from survey.tables import TemplateTable
 @login_required
 # @permission_required('portal.sitecategory', raise_exception=True)
 def template_list(request, view=Template.FOOD):
-    template = Template.objects.filter(type=view)
+    school = getattr(request, 'school', None)
+
+    # Filter templates based on user's school context
+    if request.user.is_superuser:
+        # Superuser sees all templates
+        template = Template.objects.filter(type=view)
+    elif school:
+        # School users see templates for their school or global templates (school=None)
+        template = Template.objects.filter(type=view).filter(
+            models.Q(school=school) | models.Q(school__isnull=True)
+        )
+    else:
+        # No school context - only show global templates
+        template = Template.objects.filter(type=view, school__isnull=True)
+
     exclude = []
     if not request.user.has_perm("survey.change_template"):
         exclude.append("actions")
@@ -63,7 +77,12 @@ def template_form(request, template_id=None, view=Template.FOOD):
     elif not template_id and not request.user.has_perm('survey.add_template'):
         raise PermissionDenied()
 
+    school = getattr(request, 'school', None)
     template = get_object_or_404(Template, pk=template_id, type=view) if template_id else None
+
+    # Check permission for editing templates from other schools
+    if template and template.school and template.school != school and not request.user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لتعديل هذا النموذج.')
 
     form = TemplateForm(data=request.POST or None, instance=template, type=view)
 
@@ -73,6 +92,9 @@ def template_form(request, template_id=None, view=Template.FOOD):
 
         if not template_id:
             x.created_by = request.user
+            # If user has school context and is not superuser, assign school
+            if school and not request.user.is_superuser:
+                x.school = school
         else:
             x.updated_by = request.user
         x.save()
@@ -95,7 +117,12 @@ def template_form(request, template_id=None, view=Template.FOOD):
 @login_required
 # @permission_required('portal.sitecategory', raise_exception=True)
 def template_detail(request, template_id, view=Template.FOOD):
+    school = getattr(request, 'school', None)
     template = get_object_or_404(Template.objects.prefetch_related("fields"), pk=template_id)
+
+    # Check permission for viewing templates from other schools
+    if template.school and template.school != school and not request.user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لعرض هذا النموذج.')
 
     form = TemplateFieldForm(data=request.POST or None, template=template)
 

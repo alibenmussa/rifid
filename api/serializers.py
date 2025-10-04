@@ -355,7 +355,7 @@ class GuardianStudentSerializer(serializers.ModelSerializer, TimestampMixin):
 # ==========================================
 
 class StudentTimelineAttachmentSerializer(serializers.ModelSerializer):
-    """Timeline attachment serializer"""
+    """Timeline attachment serializer for read operations"""
 
     file_url = serializers.SerializerMethodField()
     file_name = serializers.SerializerMethodField()
@@ -364,10 +364,10 @@ class StudentTimelineAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentTimelineAttachment
         fields = [
-            'id', 'file', 'file_url', 'file_name', 'file_size',
+            'id', 'file_url', 'file_name', 'file_size',
             'file_size_display', 'is_image', 'created_at'
         ]
-        read_only_fields = ['id', 'file_url', 'file_name', 'file_size_display', 'is_image']
+        read_only_fields = ['id', 'file_url', 'file_name', 'file_size_display', 'is_image', 'created_at']
 
     def get_file_url(self, obj):
         """Get full file URL"""
@@ -385,20 +385,152 @@ class StudentTimelineAttachmentSerializer(serializers.ModelSerializer):
     def get_file_size_display(self, obj):
         """Human readable file size"""
         if obj.file_size:
+            size = obj.file_size
             for unit in ['B', 'KB', 'MB', 'GB']:
-                if obj.file_size < 1024.0:
-                    return f"{obj.file_size:.1f} {unit}"
-                obj.file_size /= 1024.0
+                if size < 1024.0:
+                    return f"{size:.1f} {unit}"
+                size /= 1024.0
         return None
 
 
-class StudentTimelineSerializer(serializers.ModelSerializer, TimestampMixin):
-    """Student timeline entry serializer"""
+class StudentTimelineListSerializer(serializers.ModelSerializer):
+    """Simplified timeline serializer for list view"""
 
-    student_name = serializers.CharField(source='student.full_name', read_only=True)
     created_by_name = serializers.SerializerMethodField()
     content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
+    has_attachments = serializers.SerializerMethodField()
+    attachment_count = serializers.SerializerMethodField()
+    excerpt = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StudentTimeline
+        fields = [
+            'id', 'title', 'excerpt', 'content_type', 'content_type_display',
+            'is_pinned', 'has_attachments', 'attachment_count',
+            'created_by_name', 'created_at'
+        ]
+        read_only_fields = fields
+
+    def get_created_by_name(self, obj):
+        """Get creator's name"""
+        if obj.created_by:
+            return obj.created_by.get_full_name() or str(obj.created_by)
+        return 'غير معروف'
+
+    def get_has_attachments(self, obj):
+        """Check if timeline has attachments"""
+        return obj.attachments.exists()
+
+    def get_attachment_count(self, obj):
+        """Count attachments"""
+        return obj.attachments.count()
+
+    def get_excerpt(self, obj):
+        """Get note excerpt (first 100 chars)"""
+        if obj.note:
+            return obj.note[:100] + "..." if len(obj.note) > 100 else obj.note
+        return ""
+
+
+class StudentTimelineDetailSerializer(serializers.ModelSerializer, TimestampMixin):
+    """Detailed timeline serializer for retrieve view"""
+
+    student_name = serializers.CharField(source='student.full_name', read_only=True)
+    student_id = serializers.IntegerField(source='student.id', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    created_by_id = serializers.IntegerField(source='created_by.id', read_only=True)
+    content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
     attachments = StudentTimelineAttachmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = StudentTimeline
+        fields = [
+            'id', 'student_id', 'student_name',
+            'title', 'note',
+            'content_type', 'content_type_display',
+            'is_visible_to_guardian', 'is_visible_to_student',
+            'is_pinned',
+            'created_by_id', 'created_by_name',
+            'attachments',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+    def get_created_by_name(self, obj):
+        """Get creator's full name"""
+        if obj.created_by:
+            return obj.created_by.get_full_name() or str(obj.created_by)
+        return 'غير معروف'
+
+
+class StudentTimelineCreateSerializer(serializers.ModelSerializer):
+    """Timeline serializer for create operations"""
+
+    # Write-only file upload (accepts single or multiple files)
+    file = serializers.FileField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = StudentTimeline
+        fields = [
+            'title', 'note', 'content_type',
+            'is_visible_to_guardian', 'is_visible_to_student',
+            'is_pinned', 'file'
+        ]
+
+    def validate(self, attrs):
+        """Validate timeline entry - must have note or file"""
+        note = (attrs.get("note") or "").strip()
+        has_file = bool(self.initial_data.get("file"))
+
+        if not note and not has_file:
+            raise serializers.ValidationError({
+                "detail": "يجب إدخال المحتوى أو رفع ملف/صورة."
+            })
+
+        return attrs
+
+    def create(self, validated_data):
+        """Create timeline entry with file attachment"""
+        from django.db import transaction
+
+        request = self.context.get("request")
+        if not request:
+            raise serializers.ValidationError("Request context required.")
+
+        guardian = getattr(request.user, "guardian", None)
+        student = getattr(guardian, "selected_student", None) if guardian else None
+
+        if not student:
+            raise serializers.ValidationError({
+                "detail": "لا يوجد طالب محدّد. الرجاء اختيار الطالب أولاً."
+            })
+
+        # Get file from initial data
+        file_obj = self.initial_data.get("file")
+
+        # Remove file from validated_data (not a model field)
+        validated_data.pop('file', None)
+
+        with transaction.atomic():
+            # Set student and creator
+            validated_data["student"] = student
+            validated_data["created_by"] = request.user
+
+            # Create timeline entry
+            timeline = StudentTimeline.objects.create(**validated_data)
+
+            # Create attachment if file provided
+            if file_obj:
+                StudentTimelineAttachment.objects.create(
+                    timeline=timeline,
+                    file=file_obj
+                )
+
+        return timeline
+
+
+class StudentTimelineUpdateSerializer(serializers.ModelSerializer):
+    """Timeline serializer for update operations"""
 
     # Write-only file upload
     file = serializers.FileField(write_only=True, required=False, allow_null=True)
@@ -406,115 +538,52 @@ class StudentTimelineSerializer(serializers.ModelSerializer, TimestampMixin):
     class Meta:
         model = StudentTimeline
         fields = [
-            'id', 'student_name', 'title', 'note',
-            'content_type', 'content_type_display',
+            'title', 'note', 'content_type',
             'is_visible_to_guardian', 'is_visible_to_student',
-            'is_pinned', 'created_by', 'created_by_name',
-            'attachments', 'file', 'created_at', 'updated_at'
+            'is_pinned', 'file'
         ]
-        read_only_fields = [
-            'id', 'student_name', 'content_type_display',
-            'created_by', 'created_by_name', 'attachments'
-        ]
-
-    def get_created_by_name(self, obj):
-        """Get creator's full name"""
-        if obj.created_by:
-            return obj.created_by.get_full_name() or str(obj.created_by)
-        return None
 
     def validate(self, attrs):
-        """Validate timeline entry"""
-        note = (attrs.get("note") or "").strip()
-        has_file = bool(self.initial_data.get("file"))
+        """Validate timeline update"""
+        # Check if we're updating note
+        note = attrs.get("note")
+        if note is not None:
+            note = note.strip()
+            if not note and not self.instance.attachments.exists():
+                has_file = bool(self.initial_data.get("file"))
+                if not has_file:
+                    raise serializers.ValidationError({
+                        "note": "لا يمكن حذف المحتوى إذا لم يكن هناك مرفقات."
+                    })
 
-        if not note and not has_file:
-            raise serializers.ValidationError(
-                "يجب إدخال المحتوى أو رفع ملف/صورة."
-            )
         return attrs
 
-    def create(self, validated_data):
-        """Create timeline entry with file attachment"""
-        request = self.context["request"]
-        guardian = getattr(request.user, "guardian", None)
-        student = getattr(guardian, "selected_student", None) if guardian else None
-
-        if not student:
-            raise serializers.ValidationError(
-                "لا يوجد طالب محدّد. الرجاء اختيار الطالب أولاً."
-            )
-
-        # Get file from initial data
-        file_obj = self.initial_data.get("file")
-
-        # Set student and creator
-        validated_data["student"] = student
-        validated_data["created_by"] = request.user
-
-        # Create timeline entry
-        timeline = super().create(validated_data)
-
-        # Create attachment if file provided
-        if file_obj:
-            StudentTimelineAttachment.objects.create(
-                timeline=timeline,
-                file=file_obj
-            )
-
-        return timeline
-
     def update(self, instance, validated_data):
-        """Update timeline entry and handle file replacement"""
+        """Update timeline entry and optionally replace file"""
+        from django.db import transaction
+
         file_obj = self.initial_data.get("file")
 
-        # Update timeline
-        instance = super().update(instance, validated_data)
+        # Remove file from validated_data (not a model field)
+        validated_data.pop('file', None)
 
-        # Replace file if new one provided
-        if file_obj:
-            # Delete existing attachments
-            instance.attachments.all().delete()
-            # Create new attachment
-            StudentTimelineAttachment.objects.create(
-                timeline=instance,
-                file=file_obj
-            )
+        with transaction.atomic():
+            # Update timeline fields
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+
+            # Replace file if new one provided
+            if file_obj:
+                # Delete existing attachments
+                instance.attachments.all().delete()
+                # Create new attachment
+                StudentTimelineAttachment.objects.create(
+                    timeline=instance,
+                    file=file_obj
+                )
 
         return instance
-
-
-class StudentTimelineListSerializer(serializers.ModelSerializer):
-    """Simplified timeline serializer for lists"""
-
-    created_by_name = serializers.SerializerMethodField()
-    content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
-    has_attachments = serializers.SerializerMethodField()
-    excerpt = serializers.SerializerMethodField()
-
-    class Meta:
-        model = StudentTimeline
-        fields = [
-            'id', 'title', 'excerpt', 'content_type', 'content_type_display',
-            'is_pinned', 'has_attachments', 'created_by_name', 'created_at'
-        ]
-        read_only_fields = ['id']
-
-    def get_created_by_name(self, obj):
-        """Get creator's name"""
-        if obj.created_by:
-            return obj.created_by.get_full_name() or str(obj.created_by)
-        return None
-
-    def get_has_attachments(self, obj):
-        """Check if timeline has attachments"""
-        return obj.attachments.exists()
-
-    def get_excerpt(self, obj):
-        """Get note excerpt"""
-        if obj.note:
-            return obj.note[:100] + "..." if len(obj.note) > 100 else obj.note
-        return None
 
 
 # ==========================================
@@ -661,6 +730,21 @@ class ResponseCreateSerializer(serializers.Serializer):
 
     template = serializers.PrimaryKeyRelatedField(queryset=Template.objects.all(), required=True)
     fields = serializers.JSONField(required=True)
+
+    def validate_template(self, value):
+        """Validate that the template is accessible to the guardian's school"""
+        request = self.context.get("request")
+        if not request or not hasattr(request.user, 'guardian'):
+            raise serializers.ValidationError("المستخدم غير مصرح له.")
+
+        guardian = request.user.guardian
+        school = guardian.school
+
+        # Check if template is either for this school or global
+        if value.school and value.school != school:
+            raise serializers.ValidationError("هذا الاستبيان غير متاح لمدرستك.")
+
+        return value
 
     def validate(self, attrs):
         """Validate survey response creation"""

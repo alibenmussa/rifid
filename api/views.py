@@ -33,7 +33,8 @@ from .serializers import (
     StudentOptionSerializer, StudentSelectInputSerializer, SelectedStudentOutputSerializer,
 
     # Timeline serializers
-    StudentTimelineSerializer, StudentTimelineListSerializer,
+    StudentTimelineListSerializer, StudentTimelineDetailSerializer,
+    StudentTimelineCreateSerializer, StudentTimelineUpdateSerializer,
 
     # Survey serializers
     TemplateListItemSerializer, TemplateDetailSerializer,
@@ -142,7 +143,24 @@ class TemplateViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
     permission_classes = [IsAuthenticated, IsGuardianUser, HasSelectedStudent]
 
     def get_queryset(self):
-        return Template.objects.all().order_by("name", "id")
+        # Check if this is being called during schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Template.objects.none()
+
+        # Check if user is authenticated
+        if not self.request.user.is_authenticated:
+            return Template.objects.none()
+
+        guardian = getattr(self.request.user, 'guardian', None)
+        if not guardian:
+            return Template.objects.none()
+
+        school = guardian.school
+
+        # Filter templates: either specific to this school or global (school=None)
+        return Template.objects.filter(
+            Q(school=school) | Q(school__isnull=True)
+        ).order_by("name", "id")
 
     @swagger_auto_schema(
         operation_summary="قائمة الاستبيانات المتاحة",
@@ -151,10 +169,11 @@ class TemplateViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
     def list(self, request, *args, **kwargs):
         guardian = request.user.guardian
         student = guardian.selected_student
+        school = guardian.school
 
-        # Get templates with last response dates
+        # Get templates with last response dates (filtered by school)
         qs = (Template.objects
-        .all()
+        .filter(Q(school=school) | Q(school__isnull=True))
         .annotate(
             last_response_at=Max(
                 "responses__created_at",
@@ -368,7 +387,6 @@ class MyTimelineViewSet(viewsets.ModelViewSet):
     """Student timeline management for guardians"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsGuardianUser]
-    serializer_class = StudentTimelineSerializer
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StudentTimelineFilter
@@ -376,9 +394,16 @@ class MyTimelineViewSet(viewsets.ModelViewSet):
     ordering = ["-is_pinned", "-created_at"]
 
     def get_serializer_class(self):
+        """Return appropriate serializer for each action"""
         if self.action == 'list':
             return StudentTimelineListSerializer
-        return StudentTimelineSerializer
+        elif self.action == 'retrieve':
+            return StudentTimelineDetailSerializer
+        elif self.action == 'create':
+            return StudentTimelineCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return StudentTimelineUpdateSerializer
+        return StudentTimelineDetailSerializer
 
     def _current_student(self):
         """Get current selected student"""
@@ -435,21 +460,58 @@ class MyTimelineViewSet(viewsets.ModelViewSet):
 
     @swagger_auto_schema(
         operation_summary="تفاصيل منشور",
-        responses={200: StudentTimelineSerializer}
+        responses={200: StudentTimelineDetailSerializer}
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary="إنشاء منشور جديد",
-        request_body=StudentTimelineSerializer,
+        request_body=StudentTimelineCreateSerializer,
         responses={
-            201: StudentTimelineSerializer,
+            201: StudentTimelineDetailSerializer,
             400: "خطأ في البيانات"
         }
     )
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        timeline = serializer.save()
+
+        # Return detailed serializer
+        output_serializer = StudentTimelineDetailSerializer(timeline, context={'request': request})
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @swagger_auto_schema(
+        operation_summary="تحديث منشور",
+        request_body=StudentTimelineUpdateSerializer,
+        responses={
+            200: StudentTimelineDetailSerializer,
+            400: "خطأ في البيانات"
+        }
+    )
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        timeline = serializer.save()
+
+        # Return detailed serializer
+        output_serializer = StudentTimelineDetailSerializer(timeline, context={'request': request})
+        return Response(output_serializer.data)
+
+    @swagger_auto_schema(
+        operation_summary="تحديث جزئي لمنشور",
+        request_body=StudentTimelineUpdateSerializer,
+        responses={
+            200: StudentTimelineDetailSerializer,
+            400: "خطأ في البيانات"
+        }
+    )
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

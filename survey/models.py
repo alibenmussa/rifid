@@ -38,6 +38,7 @@ class Template(models.Model):
     name = models.CharField(max_length=255, verbose_name='الاسم', null=True, blank=True)
     type = models.CharField(choices=TYPE_CHOICES, default=FOOD, max_length=16, verbose_name='النوع')
     parent = models.OneToOneField('survey.TemplateField', on_delete=models.CASCADE, null=True, blank=True, related_name='sub_form', verbose_name='حقل النموذج')
+    school = models.ForeignKey('core.School', on_delete=models.CASCADE, null=True, blank=True, related_name='templates', verbose_name='المدرسة', help_text='إذا كان فارغاً، فهو متاح لجميع المدارس')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التعديل')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

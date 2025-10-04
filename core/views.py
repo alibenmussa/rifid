@@ -543,11 +543,18 @@ def student_form(request, guardian_id=None, student_id=None):
 
     if guardian_id:
         guardian = get_object_or_404(Guardian, id=guardian_id)
-        if school and guardian.school != school and not request.user.is_superuser:
+        # Use guardian's school for filtering classes
+        school = guardian.school
+        # Check permission
+        request_school = getattr(request, 'school', None)
+        if request_school and guardian.school != request_school and not request.user.is_superuser:
             raise PermissionDenied()
 
     if student_id:
         student = get_object_or_404(Student, id=student_id)
+        # Use student's school if no guardian specified
+        if not school:
+            school = student.school
         if guardian and student not in guardian.students.all():
             messages.error(request, "هذا الطالب غير مرتبط بالولي المحدد.")
             return redirect('dashboard:guardian_detail', guardian_id=guardian.id)

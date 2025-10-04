@@ -343,7 +343,7 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
         return guardian, student
 
 
-class StudentForm(forms.ModelForm, SchoolContextMixin):
+class StudentForm(forms.ModelForm):
     """Enhanced student form with school context"""
 
     class Meta:
@@ -363,7 +363,11 @@ class StudentForm(forms.ModelForm, SchoolContextMixin):
 
     def __init__(self, *args, **kwargs):
         self.guardian = kwargs.pop('guardian', None)
+        self.school = kwargs.pop('school', None)
         super().__init__(*args, **kwargs)
+
+        if self.school:
+            self.filter_by_school()
 
         # Add CSS classes
         for field_name, field in self.fields.items():
