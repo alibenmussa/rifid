@@ -729,7 +729,7 @@ class ResponseCreateSerializer(serializers.Serializer):
     """Survey response creation serializer"""
 
     template = serializers.PrimaryKeyRelatedField(queryset=Template.objects.all(), required=True)
-    fields = serializers.JSONField(required=True)
+    fields = serializers.DictField(child=serializers.CharField(allow_blank=True, required=False), required=True)
 
     def validate_template(self, value):
         """Validate that the template is accessible to the guardian's school"""
