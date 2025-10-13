@@ -182,6 +182,14 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
         widget=forms.Textarea(attrs={'rows': 2})
     )
 
+    # Grade selection (for class filtering)
+    s_grade = forms.ModelChoiceField(
+        label="المرحلة الدراسية",
+        queryset=Grade.objects.none(),
+        required=False,
+        help_text="اختر المرحلة أولاً لتصفية الفصول"
+    )
+
     # Class assignment
     s_current_class = forms.ModelChoiceField(
         label="الفصل الحالي",
@@ -198,6 +206,10 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
     )
 
     def __init__(self, *args, **kwargs):
+        from crispy_forms.helper import FormHelper
+        from crispy_forms.layout import Layout, Row, Column, HTML, Fieldset, Div, Field
+        import json
+
         self.school = school = kwargs.pop('school', None)
         super().__init__(*args, **kwargs)
 
@@ -209,14 +221,99 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
                 widget=forms.Select(attrs={'class': 'form-select'})
             )
 
-        # Setup crispy forms layout
-        from crispy_forms.helper import FormHelper
-        from crispy_forms.layout import Layout, Row, Column, HTML, Fieldset
+        # Prepare classes by grade for Alpine.js
+        classes_by_grade = {}
+        if school:
+            self.fields['s_grade'].queryset = Grade.objects.filter(
+                school=school, is_active=True
+            ).order_by('level')
 
+            classes = SchoolClass.objects.filter(
+                school=school, is_active=True
+            ).select_related('grade').values('id', 'name', 'grade__id', 'grade__name')
+
+            for cls in classes:
+                grade_id = str(cls['grade__id'])
+                if grade_id not in classes_by_grade:
+                    classes_by_grade[grade_id] = []
+                classes_by_grade[grade_id].append({
+                    'id': cls['id'],
+                    'name': cls['name'],
+                    'full_name': f"{cls['grade__name']} - {cls['name']}"
+                })
+
+        # Add Alpine.js attributes to grade field
+        self.fields['s_grade'].widget.attrs.update({
+            'x-model': 'selectedGrade',
+            '@change': 'filterClasses()'
+        })
+
+        # Alpine.js data and script
+        alpine_data = json.dumps(classes_by_grade)
+        alpine_script = f"""
+        <script>
+            function guardianFormData() {{
+                return {{
+                    selectedGrade: '',
+                    classesByGrade: {alpine_data},
+                    allClasses: [],
+
+                    init() {{
+                        const classSelect = document.querySelector('select[name="s_current_class"]');
+                        if (classSelect) {{
+                            this.allClasses = Array.from(classSelect.options).map(opt => ({{
+                                value: opt.value,
+                                text: opt.text,
+                                grade: this.getGradeForClass(opt.value)
+                            }}));
+                        }}
+                    }},
+
+                    getGradeForClass(classId) {{
+                        for (const [gradeId, classes] of Object.entries(this.classesByGrade)) {{
+                            if (classes.some(c => c.id == classId)) {{
+                                return gradeId;
+                            }}
+                        }}
+                        return null;
+                    }},
+
+                    filterClasses() {{
+                        const classSelect = document.querySelector('select[name="s_current_class"]');
+                        if (!classSelect) return;
+
+                        const emptyOption = classSelect.options[0];
+                        classSelect.innerHTML = '';
+                        if (emptyOption && emptyOption.value === '') {{
+                            classSelect.add(emptyOption);
+                        }}
+
+                        if (!this.selectedGrade) {{
+                            this.allClasses.forEach(cls => {{
+                                if (cls.value) {{
+                                    const option = new Option(cls.text, cls.value);
+                                    classSelect.add(option);
+                                }}
+                            }});
+                        }} else {{
+                            const classes = this.classesByGrade[this.selectedGrade] || [];
+                            classes.forEach(cls => {{
+                                const option = new Option(cls.full_name, cls.id);
+                                classSelect.add(option);
+                            }});
+                        }}
+                    }}
+                }}
+            }}
+        </script>
+        """
+
+        # Setup crispy forms layout
         self.helper = FormHelper(self)
         self.helper.form_tag = False
 
         self.helper.layout = Layout(
+            HTML('<div x-data="guardianFormData()">'),
             Div(
                 'school',
                 css_class='mb-4'
@@ -265,6 +362,9 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
                 ),
                 Row(
                     Column("s_address", css_class="col-md-6"),
+                ),
+                Row(
+                    Column("s_grade", css_class="col-md-6"),
                     Column("s_current_class", css_class="col-md-6"),
                 ),
             ),
@@ -275,6 +375,8 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
                     Column("relationship", css_class="col-md-6"),
                 ),
             ),
+            HTML('</div>'),
+            HTML(alpine_script)
         )
 
     def filter_by_school(self):
@@ -346,6 +448,21 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
 class StudentForm(forms.ModelForm):
     """Enhanced student form with school context"""
 
+    grade = forms.ModelChoiceField(
+        queryset=Grade.objects.none(),
+        required=False,
+        label="المرحلة الدراسية",
+        help_text="اختر المرحلة أولاً لتصفية الفصول"
+    )
+
+    relationship = forms.ChoiceField(
+        label="العلاقة بالطالب",
+        choices=GuardianStudent.REL_CHOICES,
+        initial="father",
+        required=False,
+        help_text="العلاقة بين ولي الأمر والطالب (في حالة الإضافة لولي أمر)"
+    )
+
     class Meta:
         model = Student
         fields = [
@@ -362,6 +479,11 @@ class StudentForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        from crispy_forms.helper import FormHelper
+        from crispy_forms.layout import Layout, Div, Field, HTML
+        from crispy_forms.bootstrap import PrependedText, AppendedText
+        import json
+
         self.guardian = kwargs.pop('guardian', None)
         self.school = kwargs.pop('school', None)
         super().__init__(*args, **kwargs)
@@ -369,7 +491,7 @@ class StudentForm(forms.ModelForm):
         if self.school:
             self.filter_by_school()
 
-        # Add CSS classes
+        # Add CSS classes and Alpine.js attributes
         for field_name, field in self.fields.items():
             if isinstance(field.widget, forms.Select):
                 field.widget.attrs.update({'class': 'form-select'})
@@ -380,13 +502,163 @@ class StudentForm(forms.ModelForm):
             else:
                 field.widget.attrs.update({'class': 'form-control'})
 
+        # Add Alpine.js attributes to grade field
+        self.fields['grade'].widget.attrs.update({
+            'x-model': 'selectedGrade',
+            '@change': 'filterClasses()'
+        })
+
         # Make student_id readonly if editing
         if self.instance and self.instance.pk:
             self.fields['student_id'].widget.attrs['readonly'] = True
 
-    def filter_by_school(self):
-        """Filter class choices by school"""
+        # Pre-select grade if student has current_class
+        if self.instance and self.instance.current_class:
+            self.fields['grade'].initial = self.instance.current_class.grade
+
+        # Prepare classes by grade for Alpine.js
+        classes_by_grade = {}
         if self.school:
+            classes = SchoolClass.objects.filter(
+                school=self.school, is_active=True
+            ).select_related('grade').values('id', 'name', 'grade__id', 'grade__name')
+
+            for cls in classes:
+                grade_id = str(cls['grade__id'])
+                if grade_id not in classes_by_grade:
+                    classes_by_grade[grade_id] = []
+                classes_by_grade[grade_id].append({
+                    'id': cls['id'],
+                    'name': cls['name'],
+                    'full_name': f"{cls['grade__name']} - {cls['name']}"
+                })
+
+        # Create crispy form helper with Alpine.js
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+
+        # Alpine.js data and script
+        alpine_data = json.dumps(classes_by_grade)
+        alpine_script = f"""
+        <script>
+            function studentFormData() {{
+                return {{
+                    selectedGrade: '',
+                    classesByGrade: {alpine_data},
+                    allClasses: [],
+
+                    init() {{
+                        const classSelect = document.querySelector('select[name="current_class"]');
+                        if (classSelect) {{
+                            this.allClasses = Array.from(classSelect.options).map(opt => ({{
+                                value: opt.value,
+                                text: opt.text,
+                                grade: this.getGradeForClass(opt.value)
+                            }}));
+                        }}
+                    }},
+
+                    getGradeForClass(classId) {{
+                        for (const [gradeId, classes] of Object.entries(this.classesByGrade)) {{
+                            if (classes.some(c => c.id == classId)) {{
+                                return gradeId;
+                            }}
+                        }}
+                        return null;
+                    }},
+
+                    filterClasses() {{
+                        const classSelect = document.querySelector('select[name="current_class"]');
+                        if (!classSelect) return;
+
+                        const emptyOption = classSelect.options[0];
+                        classSelect.innerHTML = '';
+                        if (emptyOption && emptyOption.value === '') {{
+                            classSelect.add(emptyOption);
+                        }}
+
+                        if (!this.selectedGrade) {{
+                            this.allClasses.forEach(cls => {{
+                                if (cls.value) {{
+                                    const option = new Option(cls.text, cls.value);
+                                    classSelect.add(option);
+                                }}
+                            }});
+                        }} else {{
+                            const classes = this.classesByGrade[this.selectedGrade] || [];
+                            classes.forEach(cls => {{
+                                const option = new Option(cls.full_name, cls.id);
+                                classSelect.add(option);
+                            }});
+                        }}
+                    }}
+                }}
+            }}
+        </script>
+        """
+
+        # Layout with Alpine.js wrapper
+        self.helper.layout = Layout(
+            HTML('<div x-data="studentFormData()">'),
+            Div(
+                Field('student_id', wrapper_class='col-md-6'),
+                Field('first_name', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Div(
+                Field('second_name', wrapper_class='col-md-6'),
+                Field('third_name', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Div(
+                Field('fourth_name', wrapper_class='col-md-6'),
+                Field('last_name', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Div(
+                Field('sex', wrapper_class='col-md-4'),
+                Field('date_of_birth', wrapper_class='col-md-4'),
+                Field('place_of_birth', wrapper_class='col-md-4'),
+                css_class='row'
+            ),
+            Div(
+                Field('phone', wrapper_class='col-md-6'),
+                Field('alternative_phone', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Div(
+                Field('email', wrapper_class='col-md-6'),
+                Field('nid', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Field('address'),
+            Div(
+                Field('grade', wrapper_class='col-md-6', x_model='selectedGrade'),
+                Field('current_class', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Div(
+                Field('enrollment_date', wrapper_class='col-md-6'),
+                Field('is_active', wrapper_class='col-md-6'),
+                css_class='row'
+            ),
+            Div(
+                Field('relationship', wrapper_class='col-md-6') if self.guardian else HTML(''),
+                css_class='row'
+            ) if self.guardian else HTML(''),
+            HTML('</div>'),
+            HTML(alpine_script)
+        )
+
+    def filter_by_school(self):
+        """Filter grade and class choices by school"""
+        if self.school:
+            # Filter grades by school
+            self.fields['grade'].queryset = Grade.objects.filter(
+                school=self.school, is_active=True
+            ).order_by('level')
+
+            # Filter classes by school
             self.fields['current_class'].queryset = SchoolClass.objects.filter(
                 school=self.school, is_active=True
             ).select_related('grade', 'academic_year')
@@ -414,11 +686,12 @@ class StudentForm(forms.ModelForm):
 
             # Create guardian relationship if guardian provided
             if self.guardian:
+                relationship = self.cleaned_data.get('relationship', 'father')
                 GuardianStudent.objects.get_or_create(
                     guardian=self.guardian,
                     student=instance,
                     defaults={
-                        'relationship': 'father',
+                        'relationship': relationship,
                         'is_primary': True
                     }
                 )

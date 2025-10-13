@@ -21,7 +21,7 @@ from core.models import (
     StudentTimeline
 )
 from .filters import StudentTimelineFilter, StudentFilter
-from .permissions import IsGuardianUser, HasSelectedStudent, IsSchoolMember
+from .permissions import IsGuardianUser, HasSelectedStudent, IsSchoolMember, IsEmployeeUser
 from .serializers import (
     # School structure serializers
     SchoolBasicSerializer, AcademicYearSerializer, GradeSerializer, SchoolClassSerializer,
@@ -33,7 +33,7 @@ from .serializers import (
     StudentOptionSerializer, StudentSelectInputSerializer, SelectedStudentOutputSerializer,
 
     # Timeline serializers
-    StudentTimelineListSerializer, StudentTimelineDetailSerializer,
+    StudentTimelineAttachmentSerializer, StudentTimelineListSerializer, StudentTimelineDetailSerializer,
     StudentTimelineCreateSerializer, StudentTimelineUpdateSerializer,
 
     # Survey serializers
@@ -44,6 +44,9 @@ from .serializers import (
     AuthLoginInputSerializer, AuthLoginOutputSerializer,
     RegistrationValidateCodeSerializer, RegistrationValidateCodeOutputSerializer,
     RegistrationCompleteSerializer, RegistrationCompleteOutputSerializer,
+
+    # Employee and Profile serializers
+    ProfileSerializer, EmployeeProfileSerializer, StudentListSerializerForEmployee,
 )
 from .utils import is_available_now, get_or_select_student_fast
 
@@ -383,11 +386,10 @@ class StudentDetailView(APIView):
 # ENHANCED TIMELINE VIEWSET
 # ==========================================
 
-class MyTimelineViewSet(viewsets.ModelViewSet):
-    """Student timeline management for guardians"""
+class MyTimelineViewSet(viewsets.ReadOnlyModelViewSet):
+    """Student timeline view for guardians (read-only)"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsGuardianUser]
-    parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StudentTimelineFilter
     ordering_fields = ["created_at", "is_pinned", "id"]
@@ -397,12 +399,6 @@ class MyTimelineViewSet(viewsets.ModelViewSet):
         """Return appropriate serializer for each action"""
         if self.action == 'list':
             return StudentTimelineListSerializer
-        elif self.action == 'retrieve':
-            return StudentTimelineDetailSerializer
-        elif self.action == 'create':
-            return StudentTimelineCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return StudentTimelineUpdateSerializer
         return StudentTimelineDetailSerializer
 
     def _current_student(self):
@@ -452,11 +448,31 @@ class MyTimelineViewSet(viewsets.ModelViewSet):
         )
 
     @swagger_auto_schema(
-        operation_summary="قائمة منشورات الطالب",
+        operation_summary="قائمة منشورات الطالب (ولي الأمر - قراءة فقط)",
         responses={200: StudentTimelineListSerializer(many=True)}
     )
     def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        """Get timeline entries with content_type choices"""
+        response = super().list(request, *args, **kwargs)
+
+        # Add content_type choices to response
+        response.data = {
+            'results': response.data if not isinstance(response.data, dict) else response.data.get('results', []),
+            'content_type_choices': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in StudentTimeline.CONTENT_TYPES
+            ]
+        }
+
+        # Add pagination info if paginated
+        if isinstance(self.paginator, type(None)) is False:
+            paginated = self.paginate_queryset(self.get_queryset())
+            if paginated is not None:
+                response.data['count'] = self.paginator.page.paginator.count
+                response.data['next'] = self.paginator.get_next_link()
+                response.data['previous'] = self.paginator.get_previous_link()
+
+        return response
 
     @swagger_auto_schema(
         operation_summary="تفاصيل منشور",
@@ -464,54 +480,6 @@ class MyTimelineViewSet(viewsets.ModelViewSet):
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="إنشاء منشور جديد",
-        request_body=StudentTimelineCreateSerializer,
-        responses={
-            201: StudentTimelineDetailSerializer,
-            400: "خطأ في البيانات"
-        }
-    )
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        timeline = serializer.save()
-
-        # Return detailed serializer
-        output_serializer = StudentTimelineDetailSerializer(timeline, context={'request': request})
-        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
-
-    @swagger_auto_schema(
-        operation_summary="تحديث منشور",
-        request_body=StudentTimelineUpdateSerializer,
-        responses={
-            200: StudentTimelineDetailSerializer,
-            400: "خطأ في البيانات"
-        }
-    )
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        timeline = serializer.save()
-
-        # Return detailed serializer
-        output_serializer = StudentTimelineDetailSerializer(timeline, context={'request': request})
-        return Response(output_serializer.data)
-
-    @swagger_auto_schema(
-        operation_summary="تحديث جزئي لمنشور",
-        request_body=StudentTimelineUpdateSerializer,
-        responses={
-            200: StudentTimelineDetailSerializer,
-            400: "خطأ في البيانات"
-        }
-    )
-    def partial_update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
-        return self.update(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -865,6 +833,284 @@ class SchoolStatsView(APIView):
         stats['grade_breakdown'] = list(grade_stats)
 
         return Response(stats)
+
+
+# ==========================================
+# PROFILE AND EMPLOYEE VIEWS
+# ==========================================
+
+class ProfileView(APIView):
+    """Get user profile (Guardian or Employee)"""
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="الملف الشخصي للمستخدم",
+        responses={200: ProfileSerializer}
+    )
+    def get(self, request):
+        user = request.user
+        school = None
+        user_type = user.user_type
+
+        # Get school based on user type
+        if hasattr(user, 'guardian') and user.guardian:
+            school = user.guardian.school
+        elif hasattr(user, 'employee_profile') and user.employee_profile:
+            school = user.employee_profile.school
+        elif hasattr(user, 'teacher_profile') and user.teacher_profile:
+            school = user.teacher_profile.school
+
+        profile_data = {
+            'user': user,
+            'school': school,
+            'user_type': user_type
+        }
+
+        serializer = ProfileSerializer(profile_data, context={'request': request})
+        return Response(serializer.data)
+
+
+class EmployeeStudentsViewSet(viewsets.ReadOnlyModelViewSet):
+    """Students list for Employee users"""
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsEmployeeUser]
+    serializer_class = StudentListSerializerForEmployee
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_class = StudentFilter
+    ordering_fields = ['student_id', 'full_name', 'date_of_birth', 'created_at']
+    ordering = ['full_name']
+    search_fields = ['student_id', 'full_name', 'first_name', 'last_name', 'phone']
+
+    def get_queryset(self):
+        """Return students from employee's school"""
+        if getattr(self, 'swagger_fake_view', False):
+            return Student.objects.none()
+
+        if not self.request.user.is_authenticated:
+            return Student.objects.none()
+
+        employee = getattr(self.request.user, 'employee_profile', None)
+        if not employee:
+            return Student.objects.none()
+
+        school = employee.school
+
+        return (
+            Student.objects
+            .filter(school=school, is_active=True)
+            .select_related('current_class', 'current_class__grade', 'school')
+            .prefetch_related('guardians')
+            .order_by('full_name')
+        )
+
+    @swagger_auto_schema(
+        operation_summary="قائمة الطلاب للموظف",
+        responses={200: StudentListSerializerForEmployee(many=True)}
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="تفاصيل طالب",
+        responses={200: StudentSerializer}
+    )
+    def retrieve(self, request, *args, **kwargs):
+        """Get full student details"""
+        instance = self.get_object()
+        serializer = StudentSerializer(instance, context={'request': request})
+        return Response(serializer.data)
+
+
+class EmployeeTimelineViewSet(viewsets.ModelViewSet):
+    """Timeline management for Employee users"""
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsEmployeeUser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = StudentTimelineFilter
+    ordering_fields = ["created_at", "is_pinned", "id"]
+    ordering = ["-is_pinned", "-created_at"]
+
+    def get_serializer_class(self):
+        """Return appropriate serializer for each action"""
+        if self.action == 'list':
+            return StudentTimelineListSerializer
+        elif self.action == 'retrieve':
+            return StudentTimelineDetailSerializer
+        elif self.action == 'create':
+            return StudentTimelineCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return StudentTimelineUpdateSerializer
+        return StudentTimelineDetailSerializer
+
+    def get_queryset(self):
+        """Return timeline entries from employee's school"""
+        if getattr(self, 'swagger_fake_view', False):
+            return StudentTimeline.objects.none()
+
+        if not self.request.user.is_authenticated:
+            return StudentTimeline.objects.none()
+
+        employee = getattr(self.request.user, 'employee_profile', None)
+        if not employee:
+            return StudentTimeline.objects.none()
+
+        school = employee.school
+
+        # Get student_id from query params for filtering
+        student_id = self.request.query_params.get('student_id')
+
+        queryset = StudentTimeline.objects.filter(student__school=school)
+
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+
+        return (
+            queryset
+            .select_related("student", "created_by")
+            .prefetch_related("attachments")
+            .order_by("-is_pinned", "-created_at")
+        )
+
+    def create(self, request, *args, **kwargs):
+        """Override create to set student from request data"""
+        # Get student_id from request data
+        student_id = request.data.get('student_id')
+        if not student_id:
+            return Response(
+                {'detail': 'يجب تحديد student_id للطالب.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify student belongs to employee's school
+        employee = request.user.employee_profile
+        try:
+            student = Student.objects.get(id=student_id, school=employee.school)
+        except Student.DoesNotExist:
+            return Response(
+                {'detail': 'الطالب غير موجود أو لا ينتمي لمدرستك.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Create serializer with modified context
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Override context to use specific student instead of selected_student
+        serializer.context['student'] = student
+
+        # Save the timeline entry
+        timeline = serializer.save()
+
+        # Return detailed serializer
+        output_serializer = StudentTimelineDetailSerializer(timeline, context={'request': request})
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @swagger_auto_schema(
+        operation_summary="قائمة المنشورات (موظف)",
+        responses={200: StudentTimelineListSerializer(many=True)}
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="تفاصيل منشور",
+        responses={200: StudentTimelineDetailSerializer}
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="تعديل منشور (موظف)",
+        request_body=StudentTimelineUpdateSerializer,
+        responses={
+            200: StudentTimelineDetailSerializer,
+            400: "خطأ في البيانات"
+        }
+    )
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="تعديل جزئي لمنشور (موظف)",
+        request_body=StudentTimelineUpdateSerializer,
+        responses={
+            200: StudentTimelineDetailSerializer,
+            400: "خطأ في البيانات"
+        }
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="حذف منشور (موظف)",
+        responses={204: "تم الحذف بنجاح"}
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="إضافة مرفق لمنشور",
+        manual_parameters=[
+            openapi.Parameter('file', openapi.IN_FORM, type=openapi.TYPE_FILE, required=True, description='الملف المراد رفعه')
+        ],
+        responses={
+            201: StudentTimelineAttachmentSerializer,
+            400: "خطأ في البيانات"
+        }
+    )
+    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def add_attachment(self, request, pk=None):
+        """Add attachment to timeline entry"""
+        timeline = self.get_object()
+        file_obj = request.FILES.get('file')
+
+        if not file_obj:
+            return Response(
+                {'detail': 'يجب رفع ملف.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create attachment
+        attachment = StudentTimelineAttachment.objects.create(
+            timeline=timeline,
+            file=file_obj
+        )
+
+        serializer = StudentTimelineAttachmentSerializer(attachment, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @swagger_auto_schema(
+        operation_summary="قائمة مرفقات منشور",
+        responses={200: StudentTimelineAttachmentSerializer(many=True)}
+    )
+    @action(detail=True, methods=['get'])
+    def attachments(self, request, pk=None):
+        """List all attachments for a timeline entry"""
+        timeline = self.get_object()
+        attachments = timeline.attachments.all()
+        serializer = StudentTimelineAttachmentSerializer(attachments, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_summary="حذف مرفق من منشور",
+        responses={204: "تم الحذف بنجاح"}
+    )
+    @action(detail=True, methods=['delete'], url_path='attachments/(?P<attachment_id>[^/.]+)')
+    def delete_attachment(self, request, pk=None, attachment_id=None):
+        """Delete specific attachment"""
+        timeline = self.get_object()
+
+        try:
+            attachment = timeline.attachments.get(id=attachment_id)
+            attachment.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except StudentTimelineAttachment.DoesNotExist:
+            return Response(
+                {'detail': 'المرفق غير موجود.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 
 # ==========================================

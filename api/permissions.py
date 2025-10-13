@@ -203,3 +203,17 @@ class GuardianCanAccessOwnData(BasePermission):
             return True
 
         return False
+
+
+class IsEmployeeUser(BasePermission):
+    """
+    Allows access only to authenticated users who have a related Employee profile.
+    """
+    message = "المستخدم لا يملك ملف موظف مرتبط."
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        return bool(
+            user and user.is_authenticated and
+            hasattr(user, "employee_profile") and user.employee_profile
+        )

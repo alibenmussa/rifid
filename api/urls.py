@@ -5,7 +5,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .auth_views import AuthLoginView, AuthLogoutView, RegistrationValidateCodeView, RegistrationCompleteView
-from .views import TemplateViewSet, ResponseViewSet, StudentsListView, StudentSetView, MyTimelineViewSet
+from .views import (
+    TemplateViewSet, ResponseViewSet, StudentsListView, StudentSetView, MyTimelineViewSet,
+    ProfileView, EmployeeStudentsViewSet, EmployeeTimelineViewSet
+)
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -24,21 +27,29 @@ schema_view = get_schema_view(
 router = DefaultRouter()
 router.register(r"surveys", TemplateViewSet, basename="surveys")
 router.register(r"responses", ResponseViewSet, basename="responses")
-router.register(r"timeline", MyTimelineViewSet, basename="my-timeline"),
+
+# Guardian endpoints
+router.register(r"timeline", MyTimelineViewSet, basename="my-timeline")
+
+# Employee endpoints
+router.register(r"employee/students", EmployeeStudentsViewSet, basename="employee-students")
+router.register(r"employee/timeline", EmployeeTimelineViewSet, basename="employee-timeline")
 
 urlpatterns = [
     path("", include(router.urls)),
+
+    # Profile endpoint (for both Guardian and Employee)
+    path("profile/", ProfileView.as_view(), name="profile"),
+
+    # Guardian student management
     path("students/", StudentsListView.as_view(), name="students-list"),
-    path("students/set/", StudentSetView.as_view(), name="students-set"),  # ← your preferred path
+    path("students/set/", StudentSetView.as_view(), name="students-set"),
 
-
-
+    # Authentication
     path("auth/login/", AuthLoginView.as_view(), name="auth-login"),
     path("auth/logout/", AuthLogoutView.as_view(), name="auth-logout"),
-
     path('auth/register/validate-code/', RegistrationValidateCodeView.as_view(), name='register_validate_code'),
     path('auth/register/complete/', RegistrationCompleteView.as_view(), name='register_complete'),
-
 ]
 
 if settings.DEBUG:

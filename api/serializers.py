@@ -146,15 +146,19 @@ class UserBasicSerializer(serializers.ModelSerializer):
     """Basic user information"""
 
     full_name = serializers.SerializerMethodField()
+    user_type_display = serializers.CharField(source='get_user_type_display', read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'full_name']
-        read_only_fields = ['id', 'full_name']
+        fields = [
+            'id', 'username', 'first_name', 'last_name', 'email',
+            'full_name', 'user_type', 'user_type_display', 'phone', 'avatar'
+        ]
+        read_only_fields = ['id', 'full_name', 'user_type_display']
 
     def get_full_name(self, obj):
         """Get user's full name"""
-        return obj.get_full_name() or obj.username
+        return obj.get_display_name()
 
 
 class GuardianSerializer(serializers.ModelSerializer, TimestampMixin):
@@ -194,6 +198,7 @@ class StudentSerializer(serializers.ModelSerializer, TimestampMixin):
 
     school_name = serializers.CharField(source='school.name', read_only=True)
     current_class_info = SchoolClassSerializer(source='current_class', read_only=True)
+    current_grade = serializers.SerializerMethodField()
     age = serializers.SerializerMethodField()
     guardians_info = serializers.SerializerMethodField()
 
@@ -205,14 +210,27 @@ class StudentSerializer(serializers.ModelSerializer, TimestampMixin):
             'sex', 'date_of_birth', 'place_of_birth', 'age',
             'phone', 'alternative_phone', 'email', 'nid', 'address',
             'school', 'school_name',
-            'current_class', 'current_class_info',
+            'current_class', 'current_class_info', 'current_grade',
             'enrollment_date', 'graduation_date', 'is_active',
             'guardians_info', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'student_id', 'full_name', 'school_name',
-            'current_class_info', 'age', 'guardians_info'
+            'current_class_info', 'current_grade', 'age', 'guardians_info'
         ]
+
+    def get_current_grade(self, obj):
+        """Get current grade information"""
+        if obj.current_class and obj.current_class.grade:
+            grade = obj.current_class.grade
+            return {
+                'id': grade.id,
+                'name': grade.name,
+                'level': grade.level,
+                'grade_type': grade.grade_type,
+                'grade_type_display': grade.get_grade_type_display()
+            }
+        return None
 
     def get_age(self, obj):
         """Calculate student's age"""
@@ -351,6 +369,115 @@ class GuardianStudentSerializer(serializers.ModelSerializer, TimestampMixin):
 
 
 # ==========================================
+# EMPLOYEE AND PROFILE SERIALIZERS
+# ==========================================
+
+class EmployeeProfileSerializer(serializers.ModelSerializer, TimestampMixin):
+    """Employee profile information"""
+
+    user_info = UserBasicSerializer(source='user', read_only=True)
+    school = SchoolBasicSerializer(read_only=True)
+    position_display = serializers.CharField(source='get_position_display', read_only=True)
+
+    class Meta:
+        from accounts.models import EmployeeProfile
+        model = EmployeeProfile
+        fields = [
+            'id', 'user_info', 'school', 'employee_id',
+            'position', 'position_display', 'department',
+            'hire_date', 'is_active',
+            'can_manage_students', 'can_manage_teachers', 'can_view_reports',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'user_info', 'school', 'position_display'
+        ]
+
+
+class ProfileSerializer(serializers.Serializer):
+    """Unified profile serializer for Guardian and Employee"""
+
+    user = UserBasicSerializer(read_only=True)
+    school = SchoolBasicSerializer(read_only=True)
+    user_type = serializers.CharField(read_only=True)
+    profile_data = serializers.SerializerMethodField()
+
+    def get_profile_data(self, obj):
+        """Get profile-specific data based on user type"""
+        user = obj.get('user')
+        user_type = obj.get('user_type')
+
+        if user_type == 'guardian' and hasattr(user, 'guardian'):
+            return GuardianSerializer(user.guardian, context=self.context).data
+        elif user_type == 'employee' and hasattr(user, 'employee_profile'):
+            return EmployeeProfileSerializer(user.employee_profile, context=self.context).data
+        elif user_type == 'teacher' and hasattr(user, 'teacher_profile'):
+            from accounts.models import TeacherProfile
+            teacher = user.teacher_profile
+            return {
+                'id': teacher.id,
+                'school': SchoolBasicSerializer(teacher.school).data,
+                'employee_id': teacher.employee_id,
+                'subject': teacher.subject,
+                'qualification': teacher.qualification,
+                'experience_years': teacher.experience_years,
+                'is_class_teacher': teacher.is_class_teacher,
+                'is_active': teacher.is_active
+            }
+        return None
+
+
+class StudentListSerializerForEmployee(serializers.ModelSerializer):
+    """Student list serializer for employee endpoint"""
+
+    current_class_name = serializers.CharField(source='current_class.full_name', read_only=True)
+    current_grade = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
+    guardians_count = serializers.SerializerMethodField()
+    timeline_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = [
+            'id', 'student_id', 'full_name',
+            'sex', 'date_of_birth', 'age',
+            'current_class', 'current_class_name', 'current_grade',
+            'guardians_count', 'timeline_count',
+            'is_active'
+        ]
+        read_only_fields = fields
+
+    def get_current_grade(self, obj):
+        """Get current grade info"""
+        if obj.current_class and obj.current_class.grade:
+            grade = obj.current_class.grade
+            return {
+                'id': grade.id,
+                'name': grade.name,
+                'level': grade.level,
+                'grade_type': grade.grade_type
+            }
+        return None
+
+    def get_age(self, obj):
+        """Calculate age"""
+        if obj.date_of_birth:
+            today = timezone.now().date()
+            return today.year - obj.date_of_birth.year - (
+                (today.month, today.day) < (obj.date_of_birth.month, obj.date_of_birth.day)
+            )
+        return None
+
+    def get_guardians_count(self, obj):
+        """Count guardians"""
+        return obj.guardians.count()
+
+    def get_timeline_count(self, obj):
+        """Count timeline entries"""
+        return obj.timeline.count()
+
+
+# ==========================================
 # TIMELINE SERIALIZERS
 # ==========================================
 
@@ -396,7 +523,7 @@ class StudentTimelineAttachmentSerializer(serializers.ModelSerializer):
 class StudentTimelineListSerializer(serializers.ModelSerializer):
     """Simplified timeline serializer for list view"""
 
-    created_by_name = serializers.SerializerMethodField()
+    created_by_info = UserBasicSerializer(source='created_by', read_only=True)
     content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
     has_attachments = serializers.SerializerMethodField()
     attachment_count = serializers.SerializerMethodField()
@@ -407,15 +534,9 @@ class StudentTimelineListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'excerpt', 'content_type', 'content_type_display',
             'is_pinned', 'has_attachments', 'attachment_count',
-            'created_by_name', 'created_at'
+            'created_by_info', 'created_at'
         ]
         read_only_fields = fields
-
-    def get_created_by_name(self, obj):
-        """Get creator's name"""
-        if obj.created_by:
-            return obj.created_by.get_full_name() or str(obj.created_by)
-        return 'غير معروف'
 
     def get_has_attachments(self, obj):
         """Check if timeline has attachments"""
@@ -437,8 +558,7 @@ class StudentTimelineDetailSerializer(serializers.ModelSerializer, TimestampMixi
 
     student_name = serializers.CharField(source='student.full_name', read_only=True)
     student_id = serializers.IntegerField(source='student.id', read_only=True)
-    created_by_name = serializers.SerializerMethodField()
-    created_by_id = serializers.IntegerField(source='created_by.id', read_only=True)
+    created_by_info = UserBasicSerializer(source='created_by', read_only=True)
     content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
     attachments = StudentTimelineAttachmentSerializer(many=True, read_only=True)
 
@@ -450,17 +570,11 @@ class StudentTimelineDetailSerializer(serializers.ModelSerializer, TimestampMixi
             'content_type', 'content_type_display',
             'is_visible_to_guardian', 'is_visible_to_student',
             'is_pinned',
-            'created_by_id', 'created_by_name',
+            'created_by_info',
             'attachments',
             'created_at', 'updated_at'
         ]
         read_only_fields = fields
-
-    def get_created_by_name(self, obj):
-        """Get creator's full name"""
-        if obj.created_by:
-            return obj.created_by.get_full_name() or str(obj.created_by)
-        return 'غير معروف'
 
 
 class StudentTimelineCreateSerializer(serializers.ModelSerializer):
@@ -497,8 +611,13 @@ class StudentTimelineCreateSerializer(serializers.ModelSerializer):
         if not request:
             raise serializers.ValidationError("Request context required.")
 
-        guardian = getattr(request.user, "guardian", None)
-        student = getattr(guardian, "selected_student", None) if guardian else None
+        # Check if student is provided in context (for Employee)
+        student = self.context.get("student")
+
+        # If not, try to get from guardian's selected_student
+        if not student:
+            guardian = getattr(request.user, "guardian", None)
+            student = getattr(guardian, "selected_student", None) if guardian else None
 
         if not student:
             raise serializers.ValidationError({
@@ -729,7 +848,12 @@ class ResponseCreateSerializer(serializers.Serializer):
     """Survey response creation serializer"""
 
     template = serializers.PrimaryKeyRelatedField(queryset=Template.objects.all(), required=True)
-    fields = serializers.DictField(child=serializers.CharField(allow_blank=True, required=False), required=True)
+    fields = serializers.JSONField(required=True)
+
+    def validate_fields(self, value):
+        """Validate fields data"""
+        print(f"DEBUG validate_fields: {value} (type: {type(value)})")
+        return value
 
     def validate_template(self, value):
         """Validate that the template is accessible to the guardian's school"""
@@ -783,6 +907,11 @@ class ResponseCreateSerializer(serializers.Serializer):
         template = validated_data["template"]
         data = validated_data["fields"]
 
+        print(f"DEBUG: RECEIVED DATA TYPE: {type(data)}")
+        print(f"DEBUG: RECEIVED DATA: {data}")
+        for key, value in data.items():
+            print(f"DEBUG: Field {key} = {value} (type: {type(value)})")
+
         # Get public fields
         public_fields = template.fields.filter(is_public=True).order_by("order", "id")
 
@@ -802,6 +931,9 @@ class ResponseCreateSerializer(serializers.Serializer):
                 is_public=True,
                 fields=public_fields
             )
+
+            print(f"DEBUG: FORM ERRORS: {form.errors}")
+            print(f"DEBUG: FORM IS VALID: {form.is_valid()}")
 
             if not form.is_valid():
                 raise serializers.ValidationError(form.errors)
