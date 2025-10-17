@@ -44,6 +44,7 @@ from .serializers import (
     AuthLoginInputSerializer, AuthLoginOutputSerializer,
     RegistrationValidateCodeSerializer, RegistrationValidateCodeOutputSerializer,
     RegistrationCompleteSerializer, RegistrationCompleteOutputSerializer,
+    ProfileOutputSerializer,
 
     # Employee and Profile serializers
     ProfileSerializer, EmployeeProfileSerializer, StudentListSerializerForEmployee,
@@ -846,29 +847,36 @@ class ProfileView(APIView):
 
     @swagger_auto_schema(
         operation_summary="الملف الشخصي للمستخدم",
-        responses={200: ProfileSerializer}
+        responses={200: 'ProfileOutputSerializer'}
     )
     def get(self, request):
         user = request.user
-        school = None
-        user_type = user.user_type
 
-        # Get school based on user type
-        if hasattr(user, 'guardian') and user.guardian:
-            school = user.guardian.school
-        elif hasattr(user, 'employee_profile') and user.employee_profile:
-            school = user.employee_profile.school
-        elif hasattr(user, 'teacher_profile') and user.teacher_profile:
-            school = user.teacher_profile.school
+        # Check if user is a guardian
+        try:
+            guardian = user.guardian
+        except Guardian.DoesNotExist:
+            return Response(
+                {"detail": "هذا المستخدم غير مرتبط بحساب ولي أمر"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-        profile_data = {
-            'user': user,
-            'school': school,
-            'user_type': user_type
+        # Get guardian's students
+        students_qs = guardian.students.filter(is_active=True).select_related(
+            'current_class'
+        ).order_by("last_name", "first_name")
+        students_count = students_qs.count()
+
+        # Prepare response data (same structure as login, without token)
+        response_data = {
+            "guardian": guardian,
+            "selected_student": guardian.selected_student,
+            "has_multiple_students": students_count > 1,
+            "students_count": students_count,
         }
 
-        serializer = ProfileSerializer(profile_data, context={'request': request})
-        return Response(serializer.data)
+        output_serializer = ProfileOutputSerializer(response_data)
+        return Response(output_serializer.data, status=status.HTTP_200_OK)
 
 
 class EmployeeStudentsViewSet(viewsets.ReadOnlyModelViewSet):

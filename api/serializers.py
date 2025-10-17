@@ -1126,3 +1126,17 @@ class RegistrationCompleteOutputSerializer(serializers.Serializer):
                 context={'selected_id': student.id}
             ).data
         return None
+
+
+class ProfileOutputSerializer(AuthLoginOutputSerializer):
+    """Profile output serializer (inherits from login but excludes token)"""
+
+    class Meta:
+        # Exclude token field from parent
+        exclude = ['token']
+
+    def get_fields(self):
+        """Override to exclude token field"""
+        fields = super().get_fields()
+        fields.pop('token', None)
+        return fields
