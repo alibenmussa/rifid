@@ -14,7 +14,7 @@ from django_tables2 import RequestConfig
 from core.forms import (
     GuardianWithStudentForm, StudentForm, StudentTimelineForm,
     StudentSearchForm, GuardianStudentForm, GradeForm, SchoolClassForm,
-    AcademicYearForm
+    AcademicYearForm, EmployeeForm
 )
 from core.models import (
     School, Guardian, Student, GuardianStudent,
@@ -604,54 +604,277 @@ def student_form(request, guardian_id=None, student_id=None):
 def employee_list(request):
     """Enhanced employee list with school context"""
     school = getattr(request, 'school', None)
+    user = request.user
 
-    if school:
-        # Filter by school employees
-        employees = User.objects.filter(
+    if not school and not user.is_superuser:
+        messages.error(request, 'لا يمكن الوصول إلى هذه الصفحة بدون تحديد المدرسة.')
+        return redirect('dashboard:dashboard')
+
+    # Build queryset - show all employees (both EmployeeProfile and TeacherProfile)
+    if user.is_superuser:
+        queryset = User.objects.filter(is_staff=True)
+        title = "جميع الموظفين"
+    elif school:
+        queryset = User.objects.filter(
             Q(teacher_profile__school=school) |
-            Q(employee_profile__school=school)
-        ).select_related(
-            'teacher_profile', 'employee_profile'
-        ).filter(is_staff=True)
+            Q(employee_profile__school=school),
+            is_staff=True
+        )
         title = f"موظفو {school.name}"
     else:
-        employees = User.objects.filter(is_staff=True)
+        queryset = User.objects.none()
         title = "الموظفين"
 
+    queryset = queryset.select_related(
+        'teacher_profile', 'employee_profile'
+    ).distinct().order_by('-date_joined')
+
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        queryset = queryset.filter(
+            Q(username__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(phone__icontains=search_query) |
+            Q(employee_profile__employee_id__icontains=search_query) |
+            Q(teacher_profile__employee_id__icontains=search_query)
+        ).distinct()
+
+    # Pagination
+    paginator = Paginator(queryset, 20)
+    page_number = request.GET.get('page')
+    employees = paginator.get_page(page_number)
+
+    # Table
     employee_table = EmployeeTable(employees)
-    RequestConfig(request, paginate={"per_page": 15}).configure(employee_table)
+    RequestConfig(request, paginate={"per_page": 20}).configure(employee_table)
 
     context = {
-        "table": employee_table,
-        "bar": {
-            "main": True,
-            "title": title,
-            "subtitle": f"إدارة الموظفين - {employees.count()} موظف",
-            "buttons": [
+        'table': employee_table,
+        'employees': employees,
+        'search_query': search_query,
+        'total_count': queryset.count(),
+        'bar': {
+            'main': True,
+            'title': title,
+            'subtitle': f"إدارة الموظفين - {queryset.count()} موظف",
+            'count': {
+                'total': queryset.count(),
+                'label': 'موظف'
+            },
+            'buttons': [
                 {
-                    "icon": "bi bi-plus",
-                    "label": "إضافة موظف",
-                    "color": "btn-primary"
+                    'icon': 'bi bi-plus',
+                    'label': 'إضافة موظف',
+                    'url': reverse('dashboard:employee_create'),
+                    'color': 'btn-primary'
+                },
+                {
+                    'icon': 'bi bi-download',
+                    'label': 'تصدير',
+                    'color': 'btn-outline-secondary'
                 }
             ]
         }
     }
-    return render(request, "pages/employee_list.html", context)
+    return render(request, "components/list.html", context)
 
 
 @login_required
 def employee_detail(request, pk):
-    """Employee detail view"""
-    employee = get_object_or_404(User, pk=pk, is_staff=True)
+    """Enhanced employee detail view"""
+    employee_user = get_object_or_404(User, pk=pk, is_staff=True)
+    school = getattr(request, 'school', None)
+
+    # Permission check
+    if not request.user.is_superuser:
+        employee_school = employee_user.get_school()
+        if school and employee_school != school:
+            raise PermissionDenied('ليس لديك صلاحية لعرض هذا الموظف.')
+
+    # Get employee profile (either EmployeeProfile or TeacherProfile)
+    employee_profile = None
+    profile_type = None
+
+    if hasattr(employee_user, 'employee_profile') and employee_user.employee_profile:
+        employee_profile = employee_user.employee_profile
+        profile_type = 'employee'
+    elif hasattr(employee_user, 'teacher_profile') and employee_user.teacher_profile:
+        employee_profile = employee_user.teacher_profile
+        profile_type = 'teacher'
 
     context = {
-        'employee': employee,
+        'employee': employee_user,
+        'employee_profile': employee_profile,
+        'profile_type': profile_type,
         'bar': {
-            'title': f'الموظف: {employee.get_display_name()}',
+            'title': f'الموظف: {employee_user.get_display_name()}',
+            'subtitle': f'{employee_profile.school.name if employee_profile else ""}',
             'back': reverse('dashboard:employee_list'),
+            'buttons': [
+                {
+                    'icon': 'bi bi-pencil',
+                    'label': 'تعديل',
+                    'url': reverse('dashboard:employee_edit', args=[employee_user.id]),
+                    'color': 'btn-primary'
+                } if profile_type == 'employee' else None,
+                {
+                    'icon': 'bi bi-trash',
+                    'label': 'حذف',
+                    'url': reverse('dashboard:employee_delete', args=[employee_user.id]),
+                    'color': 'btn-danger'
+                } if profile_type == 'employee' and request.user.is_superuser else None,
+            ]
         }
     }
     return render(request, "pages/employee_detail.html", context)
+
+
+@login_required
+def employee_create(request):
+    """Create new employee with school context"""
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Permission check - only employees/admins can create
+    if not user.is_superuser:
+        if not hasattr(user, 'employee_profile') or not user.employee_profile:
+            messages.error(request, 'ليس لديك صلاحية لإضافة موظفين.')
+            return redirect('dashboard:employee_list')
+
+    if not school and not user.is_superuser:
+        messages.error(request, 'لا يمكن إنشاء موظف بدون تحديد المدرسة.')
+        return redirect('dashboard:employee_list')
+
+    if request.method == 'POST':
+        form = EmployeeForm(request.POST, school=school, request_user=user)
+        if form.is_valid():
+            try:
+                employee_profile = form.save()
+                messages.success(
+                    request,
+                    f'تم إنشاء الموظف {employee_profile.user.get_display_name()} بنجاح.'
+                )
+                # Temporarily redirect to list instead of detail
+                return redirect('dashboard:employee_list')
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء الحفظ: {str(e)}')
+    else:
+        form = EmployeeForm(school=school, request_user=user)
+
+    context = {
+        'form': form,
+        'school': school,
+        'bar': {
+            'title': 'إضافة موظف',
+            'subtitle': f'إضافة موظف جديد في {school.name}' if school else 'إضافة موظف جديد',
+            'back': reverse('dashboard:employee_list'),
+        }
+    }
+    return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def employee_edit(request, pk):
+    """Edit existing employee"""
+    from accounts.models import EmployeeProfile
+
+    employee_user = get_object_or_404(User, pk=pk, is_staff=True)
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Get employee profile
+    if not hasattr(employee_user, 'employee_profile') or not employee_user.employee_profile:
+        messages.error(request, 'هذا المستخدم ليس موظفاً يمكن تعديله.')
+        return redirect('dashboard:employee_detail', pk=pk)
+
+    employee_profile = employee_user.employee_profile
+
+    # Permission check
+    if not user.is_superuser:
+        if school and employee_profile.school != school:
+            raise PermissionDenied('ليس لديك صلاحية لتعديل هذا الموظف.')
+
+    if request.method == 'POST':
+        form = EmployeeForm(
+            request.POST,
+            instance=employee_profile,
+            school=employee_profile.school,
+            request_user=user
+        )
+        if form.is_valid():
+            try:
+                employee_profile = form.save()
+                messages.success(
+                    request,
+                    f'تم تحديث بيانات الموظف {employee_profile.user.get_display_name()} بنجاح.'
+                )
+                # Temporarily redirect to list instead of detail
+                return redirect('dashboard:employee_list')
+            except Exception as e:
+                messages.error(request, f'حدث خطأ أثناء الحفظ: {str(e)}')
+    else:
+        form = EmployeeForm(
+            instance=employee_profile,
+            school=employee_profile.school,
+            request_user=user
+        )
+
+    context = {
+        'form': form,
+        'employee': employee_user,
+        'employee_profile': employee_profile,
+        'school': employee_profile.school,
+        'bar': {
+            'title': f'تعديل الموظف: {employee_user.get_display_name()}',
+            'subtitle': f'{employee_profile.school.name}',
+            'back': reverse('dashboard:employee_detail', args=[employee_user.id]),
+        }
+    }
+    return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def employee_delete(request, pk):
+    """Delete employee (only if allowed)"""
+    from accounts.models import EmployeeProfile
+
+    employee_user = get_object_or_404(User, pk=pk, is_staff=True)
+    school = getattr(request, 'school', None)
+    user = request.user
+
+    # Get employee profile
+    if not hasattr(employee_user, 'employee_profile') or not employee_user.employee_profile:
+        messages.error(request, 'هذا المستخدم ليس موظفاً يمكن حذفه.')
+        return redirect('dashboard:employee_detail', pk=pk)
+
+    employee_profile = employee_user.employee_profile
+
+    # Permission check - only superuser can delete
+    if not user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لحذف الموظفين.')
+
+    if request.method == 'POST':
+        employee_name = employee_user.get_display_name()
+        try:
+            employee_user.delete()  # This will cascade delete the profile
+            messages.success(request, f'تم حذف الموظف "{employee_name}" بنجاح.')
+            return redirect('dashboard:employee_list')
+        except Exception as e:
+            messages.error(request, f'حدث خطأ أثناء الحذف: {str(e)}')
+            return redirect('dashboard:employee_detail', pk=pk)
+
+    context = {
+        'employee': employee_user,
+        'employee_profile': employee_profile,
+        'bar': {
+            'title': f'حذف الموظف: {employee_user.get_display_name()}',
+            'back': reverse('dashboard:employee_detail', args=[employee_user.id]),
+        }
+    }
+    return render(request, 'pages/employee_delete.html', context)
 
 
 # ==========================================

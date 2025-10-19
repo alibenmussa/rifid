@@ -220,12 +220,12 @@ class AuthLoginView(APIView):
 
     @swagger_auto_schema(
         operation_summary="تسجيل الدخول",
-        operation_description="تسجيل دخول أولياء الأمور باستخدام رقم الهاتف وكلمة المرور",
+        operation_description="تسجيل دخول أولياء الأمور والموظفين باستخدام اسم المستخدم/رقم الهاتف وكلمة المرور",
         request_body=AuthLoginInputSerializer,
         responses={
             200: AuthLoginOutputSerializer,
             401: "Invalid credentials",
-            403: "User missing guardian OR guardian has no students",
+            403: "User missing guardian profile OR guardian has no students",
             400: "username and password are required",
         },
     )
@@ -236,22 +236,55 @@ class AuthLoginView(APIView):
         username = serializer.validated_data["username"].strip()
         password = serializer.validated_data["password"]
 
-        # Try authentication with the provided username (phone number)
+        # Try authentication with the provided username (phone number or username)
         user = authenticate(request, username=username, password=password)
-        print(user)
 
         if not user or not user.is_active:
             return Response(
-                {"detail": "رقم الهاتف أو كلمة المرور غير صحيحة"},
+                {"detail": "اسم المستخدم أو كلمة المرور غير صحيحة"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+
+        # Check if user is an employee (can login without guardian profile)
+        if hasattr(user, 'employee_profile') and user.employee_profile:
+            from api.serializers import EmployeeProfileSerializer
+            token, _ = Token.objects.get_or_create(user=user)
+
+            response_data = {
+                "token": token.key,
+                "user_type": "employee",
+                "employee": EmployeeProfileSerializer(user.employee_profile).data,
+                "teacher": None,
+                "guardian": None,
+                "selected_student": None,
+                "has_multiple_students": False,
+                "students_count": 0,
+            }
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        # Check if user is a teacher (can login without guardian profile)
+        if hasattr(user, 'teacher_profile') and user.teacher_profile:
+            from api.serializers import TeacherProfileSerializer
+            token, _ = Token.objects.get_or_create(user=user)
+
+            response_data = {
+                "token": token.key,
+                "user_type": "teacher",
+                "employee": None,
+                "teacher": TeacherProfileSerializer(user.teacher_profile).data,
+                "guardian": None,
+                "selected_student": None,
+                "has_multiple_students": False,
+                "students_count": 0,
+            }
+            return Response(response_data, status=status.HTTP_200_OK)
 
         # Check if user has guardian profile
         try:
             guardian = user.guardian
         except Guardian.DoesNotExist:
             return Response(
-                {"detail": "هذا المستخدم غير مرتبط بحساب ولي أمر"},
+                {"detail": "هذا المستخدم غير مرتبط بحساب ولي أمر أو موظف"},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -276,6 +309,9 @@ class AuthLoginView(APIView):
 
         response_data = {
             "token": token.key,
+            "user_type": "guardian",
+            "employee": None,
+            "teacher": None,
             "guardian": guardian,
             "selected_student": guardian.selected_student,
             "has_multiple_students": students_count > 1,

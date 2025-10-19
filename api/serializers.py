@@ -372,6 +372,26 @@ class GuardianStudentSerializer(serializers.ModelSerializer, TimestampMixin):
 # EMPLOYEE AND PROFILE SERIALIZERS
 # ==========================================
 
+class TeacherProfileSerializer(serializers.ModelSerializer, TimestampMixin):
+    """Teacher profile information"""
+
+    user_info = UserBasicSerializer(source='user', read_only=True)
+    school = SchoolBasicSerializer(read_only=True)
+
+    class Meta:
+        from accounts.models import TeacherProfile
+        model = TeacherProfile
+        fields = [
+            'id', 'user_info', 'school', 'employee_id',
+            'subject', 'qualification', 'experience_years',
+            'hire_date', 'is_active', 'is_class_teacher',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'user_info', 'school'
+        ]
+
+
 class EmployeeProfileSerializer(serializers.ModelSerializer, TimestampMixin):
     """Employee profile information"""
 
@@ -964,10 +984,19 @@ class AuthLoginInputSerializer(serializers.Serializer):
 
 
 class AuthLoginOutputSerializer(serializers.Serializer):
-    """Login output serializer"""
+    """Login output serializer for all user types"""
 
     token = serializers.CharField(help_text="رمز المصادقة")
-    guardian = GuardianSerializer(help_text="معلومات ولي الأمر")
+    user_type = serializers.CharField(help_text="نوع المستخدم (employee/teacher/guardian)")
+
+    # Employee fields (null if not employee)
+    employee = EmployeeProfileSerializer(allow_null=True, required=False, help_text="بيانات الموظف")
+
+    # Teacher fields (null if not teacher)
+    teacher = TeacherProfileSerializer(allow_null=True, required=False, help_text="بيانات المعلم")
+
+    # Guardian fields (null if not guardian)
+    guardian = GuardianSerializer(allow_null=True, required=False, help_text="معلومات ولي الأمر")
     selected_student = serializers.SerializerMethodField(help_text="الطالب المختار حالياً")
     has_multiple_students = serializers.BooleanField(help_text="يملك أكثر من طالب؟")
     students_count = serializers.IntegerField(help_text="عدد الأطفال")

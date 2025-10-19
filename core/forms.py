@@ -1,6 +1,7 @@
 # core/forms.py - Enhanced forms with school context
 from crispy_forms.layout import Div
 from django import forms
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.forms.widgets import ClearableFileInput
@@ -10,6 +11,9 @@ from core.models import (
     Guardian, Student, GuardianStudent,
     StudentTimeline
 )
+from accounts.models import EmployeeProfile
+
+User = get_user_model()
 
 
 class SchoolContextMixin:
@@ -1014,3 +1018,243 @@ def get_student_search_form_helper():
     )
 
     return helper
+
+
+class EmployeeForm(forms.ModelForm):
+    """Form for creating/editing employee profiles"""
+
+    # User fields
+    username = forms.CharField(
+        label="اسم المستخدم",
+        max_length=150,
+        help_text="اسم المستخدم لتسجيل الدخول",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    first_name = forms.CharField(
+        label="الاسم الأول",
+        max_length=150,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    last_name = forms.CharField(
+        label="اسم العائلة",
+        max_length=150,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    email = forms.EmailField(
+        label="البريد الإلكتروني",
+        required=False,
+        widget=forms.EmailInput(attrs={'class': 'form-control'})
+    )
+    phone = forms.CharField(
+        label="رقم الهاتف",
+        max_length=15,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    password = forms.CharField(
+        label="كلمة المرور",
+        required=False,
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        help_text="اتركها فارغة للاحتفاظ بكلمة المرور الحالية (عند التعديل)"
+    )
+    password_confirm = forms.CharField(
+        label="تأكيد كلمة المرور",
+        required=False,
+        widget=forms.PasswordInput(attrs={'class': 'form-control'})
+    )
+    is_active = forms.BooleanField(
+        label="مفعّل",
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+
+    # School field (for admins only)
+    school = forms.ModelChoiceField(
+        label="المدرسة",
+        queryset=School.objects.filter(is_active=True),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text="حدد المدرسة (للمدراء فقط)"
+    )
+
+    class Meta:
+        model = EmployeeProfile
+        fields = [
+            'employee_id', 'position', 'department', 'hire_date',
+            'salary', 'can_manage_students', 'can_manage_teachers',
+            'can_view_reports', 'is_active'
+        ]
+        widgets = {
+            'employee_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'position': forms.Select(attrs={'class': 'form-select'}),
+            'department': forms.TextInput(attrs={'class': 'form-control'}),
+            'hire_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'salary': forms.NumberInput(attrs={'class': 'form-control'}),
+            'can_manage_students': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_manage_teachers': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_view_reports': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        from crispy_forms.helper import FormHelper
+        from crispy_forms.layout import Layout, Fieldset, Row, Column, HTML
+
+        self.school = kwargs.pop('school', None)
+        self.request_user = kwargs.pop('request_user', None)
+        super().__init__(*args, **kwargs)
+
+        # If editing existing employee, populate user fields
+        if self.instance and self.instance.pk:
+            user = self.instance.user
+            self.fields['username'].initial = user.username
+            self.fields['first_name'].initial = user.first_name
+            self.fields['last_name'].initial = user.last_name
+            self.fields['email'].initial = user.email
+            self.fields['phone'].initial = user.phone
+            self.fields['is_active'].initial = user.is_active
+            self.fields['school'].initial = self.instance.school
+            self.fields['username'].widget.attrs['readonly'] = True
+            self.fields['password'].help_text = "اتركها فارغة للاحتفاظ بكلمة المرور الحالية"
+            self.fields['password'].required = False
+            self.fields['password_confirm'].required = False
+        else:
+            # Creating new employee
+            self.fields['password'].required = True
+            self.fields['password'].help_text = "يجب إدخال كلمة مرور للموظف الجديد"
+            self.fields['password_confirm'].required = True
+
+        # Hide school field if not admin
+        if self.request_user and not self.request_user.is_superuser:
+            if self.school:
+                self.fields['school'].initial = self.school
+                self.fields['school'].widget = forms.HiddenInput()
+            else:
+                self.fields.pop('school', None)
+
+        # Crispy forms helper
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Fieldset(
+                'بيانات المستخدم',
+                Row(
+                    Column('username', css_class='col-md-6'),
+                    Column('email', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('first_name', css_class='col-md-6'),
+                    Column('last_name', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('phone', css_class='col-md-6'),
+                    Column('is_active', css_class='col-md-6 align-self-center'),
+                ),
+                Row(
+                    Column('password', css_class='col-md-6'),
+                    Column('password_confirm', css_class='col-md-6'),
+                ),
+            ),
+            Fieldset(
+                'البيانات الوظيفية',
+                'school' if self.request_user and self.request_user.is_superuser else None,
+                Row(
+                    Column('employee_id', css_class='col-md-6'),
+                    Column('position', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('department', css_class='col-md-6'),
+                    Column('hire_date', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('salary', css_class='col-md-12'),
+                ),
+            ),
+            Fieldset(
+                'الصلاحيات',
+                Row(
+                    Column('can_manage_students', css_class='col-md-4'),
+                    Column('can_manage_teachers', css_class='col-md-4'),
+                    Column('can_view_reports', css_class='col-md-4'),
+                ),
+            ),
+        )
+
+    def clean(self):
+        """Validate form data"""
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        password_confirm = cleaned_data.get('password_confirm')
+
+        # Validate password match
+        if password or password_confirm:
+            if password != password_confirm:
+                raise ValidationError('كلمتا المرور غير متطابقتين')
+
+        # Validate username uniqueness for new employees
+        if not self.instance.pk:
+            username = cleaned_data.get('username')
+            if username and User.objects.filter(username=username).exists():
+                raise ValidationError({'username': 'اسم المستخدم موجود بالفعل'})
+
+        # Validate employee_id uniqueness within school
+        employee_id = cleaned_data.get('employee_id')
+        school = cleaned_data.get('school') or self.school
+        if employee_id and school:
+            qs = EmployeeProfile.objects.filter(school=school, employee_id=employee_id)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError({'employee_id': 'الرقم الوظيفي موجود بالفعل في هذه المدرسة'})
+
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        """Save employee profile and associated user"""
+        # Get or create user
+        if self.instance.pk:
+            # Editing existing employee
+            user = self.instance.user
+            user.username = self.cleaned_data['username']
+            user.first_name = self.cleaned_data['first_name']
+            user.last_name = self.cleaned_data['last_name']
+            user.email = self.cleaned_data.get('email', '')
+            user.phone = self.cleaned_data.get('phone', '')
+            user.is_active = self.cleaned_data.get('is_active', True)
+
+            # Update password if provided
+            password = self.cleaned_data.get('password')
+            if password:
+                user.set_password(password)
+
+            user.save()
+        else:
+            # Creating new employee - use create_user to properly hash password
+            user = User.objects.create_user(
+                username=self.cleaned_data['username'],
+                password=self.cleaned_data['password'],
+                first_name=self.cleaned_data['first_name'],
+                last_name=self.cleaned_data['last_name'],
+                email=self.cleaned_data.get('email', ''),
+                phone=self.cleaned_data.get('phone', ''),
+                user_type=User.EMPLOYEE,
+                is_staff=True,
+                is_active=self.cleaned_data.get('is_active', True),
+            )
+
+        # Save employee profile
+        employee_profile = super().save(commit=False)
+        employee_profile.user = user
+
+        # Set school
+        if self.request_user and self.request_user.is_superuser:
+            employee_profile.school = self.cleaned_data.get('school') or self.school
+        else:
+            employee_profile.school = self.school
+
+        if commit:
+            employee_profile.save()
+
+        return employee_profile
