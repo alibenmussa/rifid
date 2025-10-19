@@ -841,39 +841,32 @@ class SchoolStatsView(APIView):
 # ==========================================
 
 class ProfileView(APIView):
-    """Get user profile (Guardian or Employee)"""
+    """Get user profile (Employee/Teacher/Guardian)"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="الملف الشخصي للمستخدم",
-        responses={200: 'ProfileOutputSerializer'}
+        operation_description="الحصول على معلومات الملف الشخصي لجميع أنواع المستخدمين (موظف/معلم/ولي أمر)",
+        responses={
+            200: ProfileOutputSerializer,
+            403: "User has no profile"
+        }
     )
     def get(self, request):
+        from api.auth_views import build_user_profile_data
+
         user = request.user
 
-        # Check if user is a guardian
-        try:
-            guardian = user.guardian
-        except Guardian.DoesNotExist:
+        # Build profile data using reusable function (without token)
+        response_data = build_user_profile_data(user, include_token=False)
+
+        # Check if user has valid profile
+        if response_data is None or response_data["user_type"] is None:
             return Response(
-                {"detail": "هذا المستخدم غير مرتبط بحساب ولي أمر"},
+                {"detail": "هذا المستخدم غير مرتبط بأي حساب"},
                 status=status.HTTP_403_FORBIDDEN
             )
-
-        # Get guardian's students
-        students_qs = guardian.students.filter(is_active=True).select_related(
-            'current_class'
-        ).order_by("last_name", "first_name")
-        students_count = students_qs.count()
-
-        # Prepare response data (same structure as login, without token)
-        response_data = {
-            "guardian": guardian,
-            "selected_student": guardian.selected_student,
-            "has_multiple_students": students_count > 1,
-            "students_count": students_count,
-        }
 
         output_serializer = ProfileOutputSerializer(response_data)
         return Response(output_serializer.data, status=status.HTTP_200_OK)

@@ -16,8 +16,71 @@ from api.serializers import (
     AuthLoginOutputSerializer,
     GuardianSerializer,
     StudentOptionSerializer,
+    EmployeeProfileSerializer,
+    TeacherProfileSerializer,
     # GuardianMiniSerializer,
 )
+
+
+def build_user_profile_data(user, include_token=False):
+    """
+    Build unified profile data for any user type (employee/teacher/guardian)
+
+    Args:
+        user: The authenticated user
+        include_token: Whether to include authentication token in response
+
+    Returns:
+        dict: Profile data with consistent structure for all user types
+    """
+    response_data = {
+        "user_type": None,
+        "employee": None,
+        "teacher": None,
+        "guardian": None,
+        "selected_student": None,
+        "has_multiple_students": False,
+        "students_count": 0,
+    }
+
+    # Add token if requested
+    if include_token:
+        token, _ = Token.objects.get_or_create(user=user)
+        response_data["token"] = token.key
+
+    # Check if user is an employee
+    if hasattr(user, 'employee_profile') and user.employee_profile:
+        response_data["user_type"] = "employee"
+        response_data["employee"] = EmployeeProfileSerializer(user.employee_profile).data
+        return response_data
+
+    # Check if user is a teacher
+    if hasattr(user, 'teacher_profile') and user.teacher_profile:
+        response_data["user_type"] = "teacher"
+        response_data["teacher"] = TeacherProfileSerializer(user.teacher_profile).data
+        return response_data
+
+    # Check if user is a guardian
+    try:
+        guardian = user.guardian
+        students_qs = guardian.students.all().order_by("last_name", "first_name")
+        students_count = students_qs.count()
+
+        # Auto-select first student if none selected and has students
+        if guardian.selected_student_id is None and students_count > 0:
+            first_student = students_qs.first()
+            guardian.selected_student = first_student
+            guardian.save(update_fields=["selected_student", "updated_at"])
+
+        response_data["user_type"] = "guardian"
+        response_data["guardian"] = guardian
+        response_data["selected_student"] = guardian.selected_student
+        response_data["has_multiple_students"] = students_count > 1
+        response_data["students_count"] = students_count
+        return response_data
+
+    except Guardian.DoesNotExist:
+        return None
 
 class AuthLoginView(APIView):
     permission_classes = [AllowAny]
@@ -245,79 +308,22 @@ class AuthLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-        # Check if user is an employee (can login without guardian profile)
-        if hasattr(user, 'employee_profile') and user.employee_profile:
-            from api.serializers import EmployeeProfileSerializer
-            token, _ = Token.objects.get_or_create(user=user)
+        # Build profile data using reusable function
+        response_data = build_user_profile_data(user, include_token=True)
 
-            response_data = {
-                "token": token.key,
-                "user_type": "employee",
-                "employee": EmployeeProfileSerializer(user.employee_profile).data,
-                "teacher": None,
-                "guardian": None,
-                "selected_student": None,
-                "has_multiple_students": False,
-                "students_count": 0,
-            }
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        # Check if user is a teacher (can login without guardian profile)
-        if hasattr(user, 'teacher_profile') and user.teacher_profile:
-            from api.serializers import TeacherProfileSerializer
-            token, _ = Token.objects.get_or_create(user=user)
-
-            response_data = {
-                "token": token.key,
-                "user_type": "teacher",
-                "employee": None,
-                "teacher": TeacherProfileSerializer(user.teacher_profile).data,
-                "guardian": None,
-                "selected_student": None,
-                "has_multiple_students": False,
-                "students_count": 0,
-            }
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        # Check if user has guardian profile
-        try:
-            guardian = user.guardian
-        except Guardian.DoesNotExist:
+        # Check if user has valid profile
+        if response_data is None or response_data["user_type"] is None:
             return Response(
                 {"detail": "هذا المستخدم غير مرتبط بحساب ولي أمر أو موظف"},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Check if guardian has students
-        students_qs = guardian.students.all().order_by("last_name", "first_name")
-        students_count = students_qs.count()
-
-        if students_count == 0:
+        # Additional check for guardians with no students
+        if response_data["user_type"] == "guardian" and response_data["students_count"] == 0:
             return Response(
                 {"detail": "لا يوجد طلاب مرتبطين بهذا الحساب"},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Auto-select first student if none selected
-        if guardian.selected_student_id is None and students_count > 0:
-            first_student = students_qs.first()
-            guardian.selected_student = first_student
-            guardian.save(update_fields=["selected_student", "updated_at"])
-
-        # Get or create authentication token
-        token, _ = Token.objects.get_or_create(user=user)
-
-        response_data = {
-            "token": token.key,
-            "user_type": "guardian",
-            "employee": None,
-            "teacher": None,
-            "guardian": guardian,
-            "selected_student": guardian.selected_student,
-            "has_multiple_students": students_count > 1,
-            "students_count": students_count,
-        }
-
         output_serializer = AuthLoginOutputSerializer(response_data)
-
         return Response(output_serializer.data, status=status.HTTP_200_OK)

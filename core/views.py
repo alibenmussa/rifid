@@ -449,33 +449,32 @@ def student_detail(request, student_id: int):
     if hasattr(user, 'guardian') and user.guardian:
         timeline_qs = timeline_qs.filter(is_visible_to_guardian=True)
 
-    # Timeline form for authorized users
+    # Timeline form - always available
     form = None
-    if _can_post_timeline(user):
-        if request.method == "POST":
-            form = StudentTimelineForm(request.POST, request.FILES)
-            if form.is_valid():
-                try:
-                    with transaction.atomic():
-                        timeline_entry = form.save(commit=False)
-                        timeline_entry.student = student
-                        timeline_entry.created_by = user
-                        timeline_entry.save()
+    if request.method == "POST":
+        form = StudentTimelineForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    timeline_entry = form.save(commit=False)
+                    timeline_entry.student = student
+                    timeline_entry.created_by = user
+                    timeline_entry.save()
 
-                        # Handle file attachment
-                        uploaded_file = request.FILES.get("file")
-                        if uploaded_file:
-                            StudentTimelineAttachment.objects.create(
-                                timeline=timeline_entry,
-                                file=uploaded_file
-                            )
+                    # Handle file attachment
+                    uploaded_file = request.FILES.get("file")
+                    if uploaded_file:
+                        StudentTimelineAttachment.objects.create(
+                            timeline=timeline_entry,
+                            file=uploaded_file
+                        )
 
-                        messages.success(request, 'تم إضافة المنشور بنجاح.')
-                        return redirect("dashboard:student_detail", student_id=student.id)
-                except Exception as e:
-                    messages.error(request, f'حدث خطأ: {str(e)}')
-        else:
-            form = StudentTimelineForm()
+                    messages.success(request, 'تم إضافة المنشور بنجاح.')
+                    return redirect("dashboard:student_detail", student_id=student.id)
+            except Exception as e:
+                messages.error(request, f'حدث خطأ: {str(e)}')
+    else:
+        form = StudentTimelineForm()
 
     # Student statistics
     stats = {
@@ -515,18 +514,15 @@ def student_detail(request, student_id: int):
                 {
                     'icon': 'bi bi-pencil',
                     'label': 'تعديل البيانات',
-                    'color': 'btn-primary'
-                } if user.is_staff else None,
+                    'color': 'btn-primary',
+                    'url': reverse("dashboard:student_form", kwargs={'student_id': student.id})
+                } if user.is_staff else {},
                 {
                     'icon': 'bi bi-person-lines-fill',
                     'label': 'إضافة ولي أمر',
-                    'color': 'btn-success'
-                } if user.is_staff else None,
-                {
-                    'icon': 'bi bi-printer',
-                    'label': 'طباعة',
-                    'color': 'btn-outline-secondary'
-                }
+                    'color': 'btn-success',
+                    'url': reverse("dashboard:guardian_student_form", kwargs={'student_id': student.id})
+                } if user.is_staff else {},
             ]
         },
     }
