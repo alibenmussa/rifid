@@ -1,0 +1,48 @@
+{% extends "components/list.html" %}
+{% load django_tables2 %}
+
+{% block content %}
+    <div class="col-12">
+        <!-- Search and Filters -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-5">
+                        <label for="search" class="form-label">البحث</label>
+                        <input type="text" class="form-control" id="search" name="search"
+                               value="{{ search_query }}" placeholder="ابحث في اسم المدرسة، الرمز، اسم المدير...">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="is_active" class="form-label">الحالة</label>
+                        <select class="form-select" id="is_active" name="is_active">
+                            <option value="">الكل</option>
+                            <option value="True" {% if is_active == 'True' %}selected{% endif %}>نشط</option>
+                            <option value="False" {% if is_active == 'False' %}selected{% endif %}>غير نشط</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="bi bi-search"></i> بحث
+                        </button>
+                        <a href="?" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise"></i> إلغاء
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card">
+            <div class="card-body">
+                {% if table.rows %}
+                    <div class="table-responsive">
+                        {% render_table table %}
+                    </div>
+                {% else %}
+                    {% include 'components/empty.html' %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

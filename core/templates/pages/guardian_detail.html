@@ -1,77 +1,855 @@
 {% extends "base.html" %}
-{% load django_tables2 %}
-
+{% load static %}
 {% load qr_code %}
 
-{% block body %}
-  <div class="container mt-5">
-    <div class="row">
-      <!-- Guardian Information Card (col-md-4) -->
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-header bg-primary text-white pt-3 pb-2">
-            <h4 class="text-white">تفاصيل ولي الأمر</h4>
-          </div>
-          <div class="card-body pt-4">
-            <div class="mb-3">
-              <strong class="text-primary">الاسم:</strong>
-              <span>{{ guardian.first_name|default:'-' }} {{ guardian.last_name|default:'-' }}</span>
-            </div>
-            <div class="mb-3">
-              <strong class="text-primary">رقم الهاتف:</strong>
-              <span>{{ guardian.phone|default:'-' }}</span>
-            </div>
-            <div class="mb-3">
-              <strong class="text-primary">البريد الإلكتروني:</strong>
-              <span>{{ guardian.email|default:'-' }}</span>
-            </div>
-            <div class="mb-3">
-              <strong class="text-primary">الرقم الوطني:</strong>
-              <span>{{ guardian.nid|default:'-' }}</span>
-            </div>
-            <div class="mb-3">
-              <strong class="text-primary">عنوان السكن:</strong>
-              <span>{{ guardian.address|default:'-' }}</span>
-            </div>
-            <div class="mb-3">
-              <strong class="text-primary">الرمز:</strong>
-              <span>{{ guardian.code|default:'-' }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+{% block styles %}
+<style>
+    /* Using same styling as student_detail.html with guardian theme */
+    :root {
+        --primary: #435ebe;
+        --success: #198754;
+        --warning: #ffc107;
+        --danger: #dc3545;
+        --info: #0dcaf0;
+        --dark: #1e293b;
+        --gray: #475569;
+        --light-gray: #64748b;
+        --bg-gray: #f8fafc;
+        --border-gray: #e2e8f0;
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.12);
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-      <!-- Guardian Students Relations Card (col-md-8) -->
-      <div class="col-md-8">
-        <div class="card">
-          <div class="card-header bg-primary text-white pt-3 pb-2">
-            <h5 class="text-white">الأبناء</h5>
-          </div>
-          <div class="card-body pt-3">
-            {% render_table students_table %}
-          </div>
-        </div>
-      </div>
+    body {
+        background-color: var(--bg-gray);
+        font-family: 'IBM Plex Sans Arabic', sans-serif;
+        line-height: 1.8;
+    }
 
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-header bg-primary text-white pt-3 pb-2">
-            <h5 class="text-white">رمز التسجيل (QR Code)</h5>
-          </div>
-          <div class="card-body text-center">
-            {% if guardian.code %}
-                    <div class="d-flex flex-column justify-content-center align-items-center">
-                        {% qr_from_text guardian.code %}
+    .student-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem;
+    }
 
-                        <h3 class="text-primary">{{ guardian.code }}</h3>
-                    </div>
-            {% else %}
-              <p>لا يوجد رمز QR</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    /* Profile Header - Same as student */
+    .profile-header {
+        background: white;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        transition: var(--transition);
+    }
+
+    .profile-header:hover {
+        box-shadow: var(--shadow-md);
+    }
+
+    .student-avatar-large {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        font-weight: 700;
+        border: 4px solid var(--bg-gray);
+        box-shadow: var(--shadow-md);
+    }
+
+    .student-name {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin: 0 0 0.5rem 0;
+    }
+
+    .badge-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.875rem;
+        background: var(--bg-gray);
+        border: 1px solid var(--border-gray);
+        border-radius: 50px;
+        font-size: 0.875rem;
+        color: var(--gray);
+        font-weight: 500;
+        transition: var(--transition);
+        line-height: 1.4;
+    }
+
+    .badge-chip:hover {
+        background: var(--border-gray);
+        transform: translateY(-1px);
+    }
+
+    .badge-chip i {
+        font-size: 0.875rem;
+        color: #10b981;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .quick-stats {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        padding-top: 1.25rem;
+        margin-top: 1.25rem;
+        border-top: 1px solid var(--border-gray);
+    }
+
+    .stat-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.125rem;
+        background: var(--bg-gray);
+        border: 1px solid var(--border-gray);
+        border-radius: 50px;
+        transition: var(--transition);
+    }
+
+    .stat-badge:hover {
+        background: var(--border-gray);
+        transform: translateY(-1px);
+    }
+
+    .stat-badge i {
+        font-size: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .stat-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-value {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--dark);
+        line-height: 1.2;
+    }
+
+    .stat-label {
+        font-size: 0.8125rem;
+        color: var(--gray);
+        margin-top: 0.125rem;
+        line-height: 1;
+    }
+
+    /* Grid Layout - Same as student */
+    .content-grid {
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    .sidebar-left {
+        position: sticky;
+        top: 1.5rem;
+    }
+
+    /* Info Cards - Same as student */
+    .info-card {
+        background: white;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        transition: var(--transition);
+    }
+
+    .info-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+
+    .card-header-custom {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-gray);
+        background: linear-gradient(to bottom, white, var(--bg-gray));
+    }
+
+    .card-header-custom h5 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-header-custom i {
+        font-size: 1.125rem;
+        color: #10b981;
+    }
+
+    .card-body-custom {
+        padding: 1.5rem;
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid var(--bg-gray);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .info-item:first-child {
+        padding-top: 0;
+    }
+
+    .info-label {
+        font-size: 0.875rem;
+        color: var(--gray);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+        line-height: 1.4;
+    }
+
+    .info-label i {
+        width: 18px;
+        font-size: 0.875rem;
+        text-align: center;
+        color: var(--light-gray);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .info-value {
+        font-size: 0.9375rem;
+        color: var(--dark);
+        font-weight: 500;
+        text-align: left;
+    }
+
+    .info-value small {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--gray);
+        margin-top: 0.125rem;
+    }
+
+    /* Timeline Feed - Adapted for Students */
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .timeline-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .timeline-title i {
+        color: #10b981;
+    }
+
+    /* Student Post Cards */
+    .post-card {
+        background: white;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 1.25rem;
+        transition: var(--transition);
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+    }
+
+    .post-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
+    .post-header {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        padding: 1.25rem 1.5rem 1rem;
+    }
+
+    .post-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary), #5a6fd8);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 1.125rem;
+        flex-shrink: 0;
+    }
+
+    .post-meta {
+        flex: 1;
+    }
+
+    .post-author {
+        font-weight: 600;
+        color: var(--dark);
+        font-size: 0.9375rem;
+        margin-bottom: 0.125rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .post-time {
+        font-size: 0.8125rem;
+        color: var(--gray);
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        line-height: 1;
+    }
+
+    .post-time i {
+        font-size: 0.8125rem;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .post-badges {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .content-type-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .content-type-badge.father {
+        background: rgba(67, 94, 190, 0.1);
+        color: var(--primary);
+    }
+
+    .content-type-badge.mother {
+        background: rgba(236, 72, 153, 0.1);
+        color: #ec4899;
+    }
+
+    .content-type-badge.primary {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .content-type-badge.other {
+        background: rgba(108, 117, 125, 0.1);
+        color: var(--gray);
+    }
+
+    .post-content {
+        padding: 0 1.5rem 1.25rem;
+    }
+
+    .post-title {
+        font-size: 1.0625rem;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 0.75rem;
+    }
+
+    .post-note {
+        color: var(--dark);
+        line-height: 1.75;
+        font-size: 0.9375rem;
+    }
+
+    .post-note small {
+        display: block;
+        color: var(--gray);
+        margin-top: 0.5rem;
+    }
+
+    .permission-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+    }
+
+    .permission-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.625rem;
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .permission-badge i {
+        font-size: 0.875rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--light-gray);
+        margin-bottom: 1.5rem;
+    }
+
+    .empty-state h5 {
+        color: var(--gray);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: var(--light-gray);
+        margin-bottom: 2rem;
+    }
+
+    /* QR Code in sidebar */
+    .qr-wrapper {
+        text-align: center;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);
+        border-radius: var(--radius-sm);
+    }
+
+    .qr-wrapper img,
+    .qr-wrapper svg {
+        display: inline-block;
+        max-width: 100%;
+        height: auto;
+    }
+
+    .qr-code-text {
+        margin-top: 1rem;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #10b981;
+        letter-spacing: 0.1em;
+    }
+
+    /* Responsive */
+    @media (max-width: 1199px) {
+        .content-grid {
+            grid-template-columns: 320px 1fr;
+            gap: 1.5rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .student-container {
+            padding: 1rem;
+        }
+
+        .content-grid {
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+
+        .sidebar-left {
+            position: static;
+        }
+
+        .profile-header {
+            padding: 1.5rem;
+        }
+
+        .student-avatar-large {
+            width: 80px;
+            height: 80px;
+            font-size: 2rem;
+        }
+
+        .student-name {
+            font-size: 1.5rem;
+        }
+
+        .quick-stats {
+            gap: 0.75rem;
+        }
+
+        .stat-badge {
+            padding: 0.5rem 0.875rem;
+        }
+
+        .stat-value {
+            font-size: 1rem;
+        }
+    }
+</style>
 {% endblock %}
 
+{% block body %}
+<div class="student-container">
+    <!-- Profile Header -->
+    <div class="profile-header">
+        <div class="row align-items-center">
+            <div class="col-md-auto text-center text-md-start mb-3 mb-md-0">
+                <div class="student-avatar-large">
+                    {{ guardian.first_name|slice:":1"|upper }}{{ guardian.last_name|slice:":1"|upper }}
+                </div>
+            </div>
+            <div class="col-md">
+                <h2 class="student-name">{{ guardian.first_name }} {{ guardian.last_name }}</h2>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge-chip">
+                        <i class="bi bi-telephone"></i>
+                        {{ guardian.phone }}
+                    </span>
+                    {% if guardian.email %}
+                    <span class="badge-chip">
+                        <i class="bi bi-envelope"></i>
+                        {{ guardian.email }}
+                    </span>
+                    {% endif %}
+                    <span class="badge-chip">
+                        <i class="bi bi-building"></i>
+                        {{ guardian.school.name }}
+                    </span>
+                    {% if guardian.selected_student %}
+                    <span class="badge-chip">
+                        <i class="bi bi-star-fill"></i>
+                        {{ guardian.selected_student.full_name }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-auto text-center text-md-end">
+                <div class="d-flex flex-column flex-md-row gap-2">
+                    {% if bar.buttons %}
+                        {% for button in bar.buttons %}
+                            {% if button %}
+                            <a href="{{ button.url }}" class="btn {{ button.color }} btn-sm">
+                                <i class="{{ button.icon }} me-1"></i>
+                                {{ button.label }}
+                            </a>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats Bar -->
+        <div class="quick-stats">
+            <div class="stat-badge">
+                <i class="bi bi-people-fill text-primary"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ guardian.students.count }}</span>
+                    <span class="stat-label">طالب</span>
+                </div>
+            </div>
+            {% if guardian.user %}
+            <div class="stat-badge">
+                <i class="bi bi-check-circle-fill text-success"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ guardian.user.is_active|yesno:"مفعل,غير مفعل" }}</span>
+                    <span class="stat-label">الحساب</span>
+                </div>
+            </div>
+            {% if guardian.user.last_login %}
+            <div class="stat-badge">
+                <i class="bi bi-clock-history" style="color: var(--info);"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ guardian.user.last_login|timesince|truncatewords:2 }}</span>
+                    <span class="stat-label">آخر دخول</span>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+            {% if guardian.code %}
+            <div class="stat-badge">
+                <i class="bi bi-qr-code" style="color: #10b981;"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ guardian.code|truncatechars:10 }}</span>
+                    <span class="stat-label">رمز التسجيل</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+        <!-- Left Sidebar: Guardian Info -->
+        <aside class="sidebar-left">
+            <!-- Personal Information -->
+            <div class="info-card">
+                <div class="card-header-custom">
+                    <h5>
+                        <i class="bi bi-person-circle"></i>
+                        المعلومات الشخصية
+                    </h5>
+                </div>
+                <div class="card-body-custom">
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-person"></i>
+                            الاسم الكامل
+                        </div>
+                        <div class="info-value">{{ guardian.first_name }} {{ guardian.last_name }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-telephone"></i>
+                            الهاتف
+                        </div>
+                        <div class="info-value">{{ guardian.phone|default:"-" }}</div>
+                    </div>
+                    {% if guardian.alternative_phone %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-phone"></i>
+                            هاتف بديل
+                        </div>
+                        <div class="info-value">{{ guardian.alternative_phone }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-envelope"></i>
+                            البريد
+                        </div>
+                        <div class="info-value">{{ guardian.email|default:"-" }}</div>
+                    </div>
+                    {% if guardian.nid %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-credit-card-2-front"></i>
+                            الرقم الوطني
+                        </div>
+                        <div class="info-value">{{ guardian.nid }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-house"></i>
+                            العنوان
+                        </div>
+                        <div class="info-value">{{ guardian.address|default:"-" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Information -->
+            {% if guardian.user %}
+            <div class="info-card">
+                <div class="card-header-custom">
+                    <h5>
+                        <i class="bi bi-shield-check"></i>
+                        معلومات الحساب
+                    </h5>
+                </div>
+                <div class="card-body-custom">
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-person-badge"></i>
+                            اسم المستخدم
+                        </div>
+                        <div class="info-value">{{ guardian.user.username }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-activity"></i>
+                            الحالة
+                        </div>
+                        <div class="info-value">
+                            {% if guardian.user.is_active %}
+                                <span class="badge bg-success">نشط</span>
+                            {% else %}
+                                <span class="badge bg-secondary">غير نشط</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if guardian.user.last_login %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-clock-history"></i>
+                            آخر دخول
+                        </div>
+                        <div class="info-value">
+                            {{ guardian.user.last_login|date:"j F Y" }}
+                            <small>{{ guardian.user.last_login|timesince }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-calendar-check"></i>
+                            تاريخ الإنشاء
+                        </div>
+                        <div class="info-value">{{ guardian.created_at|date:"j F Y" }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- QR Code -->
+            {% if guardian.code %}
+            <div class="info-card">
+                <div class="card-header-custom">
+                    <h5>
+                        <i class="bi bi-qr-code"></i>
+                        رمز التسجيل
+                    </h5>
+                </div>
+                <div class="card-body-custom">
+                    <div class="qr-wrapper">
+                        {% qr_from_text guardian.code size="M" %}
+                        <div class="qr-code-text">{{ guardian.code }}</div>
+                    </div>
+                    <p class="text-center text-muted small mt-3 mb-0">
+                        استخدم هذا الرمز للتسجيل في التطبيق
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </aside>
+
+        <!-- Main Feed: Students -->
+        <main class="timeline-feed">
+            <div class="timeline-header">
+                <div class="timeline-title">
+                    <i class="bi bi-people-fill"></i>
+                    الأبناء
+                </div>
+                {% if guardian.students.count > 0 %}
+                <span class="badge bg-primary">{{ guardian.students.count }}</span>
+                {% endif %}
+            </div>
+
+            {% if guardian.guardianstudent_set.all %}
+                {% for relationship in guardian.guardianstudent_set.all %}
+                <div class="post-card" onclick="window.location.href='{% url 'dashboard:student_detail' relationship.student.id %}'">
+                    <div class="post-header">
+                        <div class="post-avatar">
+                            {{ relationship.student.full_name|slice:":1"|upper }}
+                        </div>
+                        <div class="post-meta">
+                            <div class="post-author">
+                                <span>{{ relationship.student.full_name }}</span>
+                            </div>
+                            <div class="post-time">
+                                {% if relationship.student.student_id %}
+                                <i class="bi bi-credit-card"></i>
+                                {{ relationship.student.student_id }}
+                                {% endif %}
+                                {% if relationship.student.current_class %}
+                                <span class="mx-1">•</span>
+                                <i class="bi bi-door-open"></i>
+                                {{ relationship.student.current_class.full_name }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="post-badges">
+                            <span class="content-type-badge {{ relationship.relationship }}{% if relationship.is_primary %} primary{% endif %}">
+                                <i class="bi bi-{% if relationship.is_primary %}star-fill{% else %}person-heart{% endif %}"></i>
+                                {{ relationship.get_relationship_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <div class="post-note">
+                            {% if relationship.student.date_of_birth %}
+                            <strong>العمر:</strong> {{ relationship.student.date_of_birth|timesince|truncatewords:2 }}
+                            {% endif %}
+                            {% if relationship.student.phone %}
+                            <span class="mx-2">•</span>
+                            <strong>الهاتف:</strong> {{ relationship.student.phone }}
+                            {% endif %}
+                            {% if relationship.student.enrollment_date %}
+                            <span class="mx-2">•</span>
+                            <strong>الالتحاق:</strong> {{ relationship.student.enrollment_date|date:"Y" }}
+                            {% endif %}
+                            <small>
+                                {% if relationship.student.is_active %}
+                                <span class="badge bg-success">نشط</span>
+                                {% else %}
+                                <span class="badge bg-secondary">غير نشط</span>
+                                {% endif %}
+                            </small>
+                        </div>
+
+                        <!-- Permissions -->
+                        <div class="permission-badges">
+                            {% if relationship.is_emergency_contact %}
+                            <span class="permission-badge">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                جهة اتصال طارئة
+                            </span>
+                            {% endif %}
+                            {% if relationship.can_pickup %}
+                            <span class="permission-badge">
+                                <i class="bi bi-box-arrow-right"></i>
+                                يمكنه الاستلام
+                            </span>
+                            {% endif %}
+                            {% if relationship.can_receive_notifications %}
+                            <span class="permission-badge">
+                                <i class="bi bi-bell-fill"></i>
+                                يستقبل الإشعارات
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-people"></i>
+                    <h5>لا يوجد أبناء</h5>
+                    <p>لم يتم ربط أي طالب بهذا الولي حتى الآن</p>
+                </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}

@@ -19,7 +19,7 @@ from .models import (
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):
     list_display = [
-        'name', 'code', 'principal_name', 'phone',
+        'name', 'code', 'principal_name', 'phone', 'logo',
         'students_count', 'guardians_count', 'is_active', 'created_at'
     ]
     list_filter = ['is_active', 'created_at']
@@ -28,7 +28,7 @@ class SchoolAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('معلومات أساسية', {
-            'fields': ('name', 'code', 'principal_name')
+            'fields': ('name', 'code', 'principal_name', 'logo')
         }),
         ('معلومات الاتصال', {
             'fields': ('address', 'phone', 'email')

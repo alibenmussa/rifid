@@ -1,4 +1,5 @@
 # core/forms.py - Enhanced forms with school context
+from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Div
 from django import forms
 from django.contrib.auth import get_user_model
@@ -38,16 +39,20 @@ class SchoolForm(forms.ModelForm):
     class Meta:
         model = School
         fields = [
-            'name', 'address', 'phone', 'email', 'principal_name',
+            'name', 'logo', 'address', 'phone', 'email', 'principal_name',
             'academic_year_start', 'academic_year_end', 'is_active'
         ]
         widgets = {
             'address': forms.Textarea(attrs={'rows': 3}),
             'academic_year_start': forms.DateInput(attrs={'type': 'date'}),
             'academic_year_end': forms.DateInput(attrs={'type': 'date'}),
+            'logo': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
         }
 
     def __init__(self, *args, **kwargs):
+        from crispy_forms.helper import FormHelper
+        from crispy_forms.layout import Layout, Fieldset, Row, Column, HTML
+
         super().__init__(*args, **kwargs)
 
         # Make fields required
@@ -56,7 +61,47 @@ class SchoolForm(forms.ModelForm):
 
         # Add CSS classes
         for field_name, field in self.fields.items():
-            field.widget.attrs.update({'class': 'form-control'})
+            if field_name != 'logo':
+                if isinstance(field.widget, forms.CheckboxInput):
+                    field.widget.attrs.update({'class': 'form-check-input'})
+                elif isinstance(field.widget, forms.Textarea):
+                    field.widget.attrs.update({'class': 'form-control'})
+                else:
+                    field.widget.attrs.update({'class': 'form-control'})
+
+        # Crispy forms helper
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Fieldset(
+                'معلومات المدرسة الأساسية',
+                Row(
+                    Column('name', css_class='col-md-8'),
+                    Column('logo', css_class='col-md-4'),
+                ),
+                Row(
+                    Column('principal_name', css_class='col-md-6'),
+                    Column('phone', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('email', css_class='col-md-12'),
+                ),
+                'address',
+            ),
+            Fieldset(
+                'السنة الدراسية',
+                Row(
+                    Column('academic_year_start', css_class='col-md-6'),
+                    Column('academic_year_end', css_class='col-md-6'),
+                ),
+            ),
+            Fieldset(
+                'الإعدادات',
+                Row(
+                    Column('is_active', css_class='col-md-12'),
+                ),
+            ),
+        )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -81,7 +126,26 @@ class GradeForm(forms.ModelForm, SchoolContextMixin):
             'description': forms.Textarea(attrs={'rows': 2}),
         }
 
+    def clean_level(self):
+        level = self.cleaned_data.get('level')
+        if not str(level).isdigit():
+            raise ValidationError('المستوى الدراسي يجب أن يكون رقماً صحيحاً.')
+
+        if int(level) < 0 or int(level) > 12:
+            raise ValidationError('المستوى الدراسي يجب أن يكون بين 0 و 12.')
+
+        if self.school and Grade.objects.filter(
+            school=self.school,
+            level=level
+        ).exclude(pk=self.instance.pk if self.instance else None).exists():
+            raise ValidationError('المستوى الدراسي موجود بالفعل في هذه المدرسة.')
+
+        return level
+
     def __init__(self, *args, **kwargs):
+        # Extract school from kwargs
+        self.school = kwargs.pop('school', None)
+
         super().__init__(*args, **kwargs)
 
         # Add CSS classes
@@ -92,6 +156,9 @@ class GradeForm(forms.ModelForm, SchoolContextMixin):
                 field.widget.attrs.update({'class': 'form-select'})
             elif isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.update({'class': 'form-control'})
+
+        self.helper = FormHelper()
+        self.helper.form_tag = False
 
 
 class SchoolClassForm(forms.ModelForm, SchoolContextMixin):
@@ -105,6 +172,9 @@ class SchoolClassForm(forms.ModelForm, SchoolContextMixin):
         ]
 
     def __init__(self, *args, **kwargs):
+        # Extract school from kwargs
+        self.school = kwargs.pop('school', None)
+
         super().__init__(*args, **kwargs)
 
         # Add CSS classes
@@ -113,6 +183,13 @@ class SchoolClassForm(forms.ModelForm, SchoolContextMixin):
                 field.widget.attrs.update({'class': 'form-select'})
             else:
                 field.widget.attrs.update({'class': 'form-control'})
+
+        # Filter querysets by school if provided
+        if self.school:
+            self.filter_by_school()
+
+        self.helper = FormHelper()
+        self.helper.form_tag = False
 
     def filter_by_school(self):
         """Filter choices by school"""
@@ -153,7 +230,7 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
 
     # Student fields
     s_student_id = forms.CharField(
-        label="الرقم الجامعي",
+        label="رقم القيد",
         required=False,
         help_text="سيتم إنشاؤه تلقائياً إذا ترك فارغاً"
     )
@@ -395,7 +472,7 @@ class GuardianWithStudentForm(forms.Form, SchoolContextMixin):
         student_id = self.cleaned_data.get('s_student_id')
         if student_id and self.school:
             if Student.objects.filter(school=self.school, student_id=student_id).exists():
-                raise ValidationError('الرقم الجامعي موجود بالفعل في هذه المدرسة.')
+                raise ValidationError('رقم القيد موجود بالفعل في هذه المدرسة.')
         return student_id
 
     @transaction.atomic
@@ -675,7 +752,7 @@ class StudentForm(forms.ModelForm):
             if self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
-                raise ValidationError('الرقم الجامعي موجود بالفعل في هذه المدرسة.')
+                raise ValidationError('رقم القيد موجود بالفعل في هذه المدرسة.')
         return student_id
 
     def save(self, commit=True):
@@ -824,7 +901,7 @@ class StudentSearchForm(forms.Form):
         label="البحث",
         required=False,
         widget=forms.TextInput(attrs={
-            'placeholder': 'ابحث بالاسم، الرقم الجامعي، أو الهاتف...',
+            'placeholder': 'ابحث بالاسم، رقم القيد، أو الهاتف...',
             'class': 'form-control'
         })
     )
@@ -1075,7 +1152,7 @@ class EmployeeForm(forms.ModelForm):
         queryset=School.objects.filter(is_active=True),
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text="حدد المدرسة (للمدراء فقط)"
+        help_text="حدد المدرسة (لمسؤول النظام فقط)"
     )
 
     class Meta:
@@ -1258,3 +1335,261 @@ class EmployeeForm(forms.ModelForm):
             employee_profile.save()
 
         return employee_profile
+
+
+class TeacherForm(forms.ModelForm):
+    """Form for creating/editing teacher profiles"""
+
+    # User fields
+    username = forms.CharField(
+        label="اسم المستخدم",
+        max_length=150,
+        help_text="اسم المستخدم لتسجيل الدخول",
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    first_name = forms.CharField(
+        label="الاسم الأول",
+        max_length=150,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    last_name = forms.CharField(
+        label="اسم العائلة",
+        max_length=150,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    email = forms.EmailField(
+        label="البريد الإلكتروني",
+        required=False,
+        widget=forms.EmailInput(attrs={'class': 'form-control'})
+    )
+    phone = forms.CharField(
+        label="رقم الهاتف",
+        max_length=15,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    date_of_birth = forms.DateField(
+        label="تاريخ الميلاد",
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    password = forms.CharField(
+        label="كلمة المرور",
+        required=False,
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        help_text="اتركها فارغة للاحتفاظ بكلمة المرور الحالية (عند التعديل)"
+    )
+    password_confirm = forms.CharField(
+        label="تأكيد كلمة المرور",
+        required=False,
+        widget=forms.PasswordInput(attrs={'class': 'form-control'})
+    )
+    user_is_active = forms.BooleanField(
+        label="مفعّل",
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+
+    # School field (for admins only)
+    school = forms.ModelChoiceField(
+        label="المدرسة",
+        queryset=School.objects.filter(is_active=True),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text="حدد المدرسة (للمدراء فقط)"
+    )
+
+    class Meta:
+        from accounts.models import TeacherProfile
+        model = TeacherProfile
+        fields = [
+            'employee_id', 'subject', 'qualification', 'experience_years',
+            'hire_date', 'salary', 'is_active', 'is_class_teacher'
+        ]
+        widgets = {
+            'employee_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'subject': forms.TextInput(attrs={'class': 'form-control'}),
+            # 'qualification': forms.TextInput(attrs={'class': 'form-control'}),
+            'experience_years': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'hire_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'salary': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_class_teacher': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'employee_id': 'الرقم الوظيفي',
+            'subject': 'المادة المتخصصة',
+            'qualification': 'المؤهل العلمي',
+            'experience_years': 'سنوات الخبرة',
+            'hire_date': 'تاريخ التوظيف',
+            'salary': 'الراتب',
+            'is_active': 'نشط',
+            'is_class_teacher': 'معلم فصل',
+        }
+
+    def __init__(self, *args, **kwargs):
+        from crispy_forms.helper import FormHelper
+        from crispy_forms.layout import Layout, Fieldset, Row, Column
+
+        self.school = kwargs.pop('school', None)
+        self.request_user = kwargs.pop('request_user', None)
+        super().__init__(*args, **kwargs)
+
+        # If editing existing teacher, populate user fields
+        if self.instance and self.instance.pk:
+            user = self.instance.user
+            self.fields['username'].initial = user.username
+            self.fields['first_name'].initial = user.first_name
+            self.fields['last_name'].initial = user.last_name
+            self.fields['email'].initial = user.email
+            self.fields['phone'].initial = user.phone
+            self.fields['date_of_birth'].initial = user.date_of_birth
+            self.fields['user_is_active'].initial = user.is_active
+            self.fields['school'].initial = self.instance.school
+            self.fields['username'].widget.attrs['readonly'] = True
+            self.fields['password'].help_text = "اتركها فارغة للاحتفاظ بكلمة المرور الحالية"
+            self.fields['password'].required = False
+            self.fields['password_confirm'].required = False
+        else:
+            # Creating new teacher
+            self.fields['password'].required = True
+            self.fields['password'].help_text = "يجب إدخال كلمة مرور للمعلم الجديد"
+            self.fields['password_confirm'].required = True
+
+        # Hide school field if not admin
+        if self.request_user and not self.request_user.is_superuser:
+            if self.school:
+                self.fields['school'].initial = self.school
+                self.fields['school'].widget = forms.HiddenInput()
+            else:
+                self.fields.pop('school', None)
+
+        # Crispy forms helper
+        self.helper = FormHelper()
+        self.helper.form_tag = False
+        self.helper.layout = Layout(
+            Fieldset(
+                'بيانات المستخدم',
+                Row(
+                    Column('username', css_class='col-md-6'),
+                    Column('email', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('first_name', css_class='col-md-6'),
+                    Column('last_name', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('phone', css_class='col-md-6'),
+                    Column('date_of_birth', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('password', css_class='col-md-6'),
+                    Column('password_confirm', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('user_is_active', css_class='col-md-6 align-self-center'),
+                ),
+            ),
+            Fieldset(
+                'البيانات الأكاديمية والوظيفية',
+                'school' if self.request_user and self.request_user.is_superuser else None,
+                Row(
+                    Column('employee_id', css_class='col-md-6'),
+                    Column('subject', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('qualification', css_class='col-md-6'),
+                    Column('experience_years', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('hire_date', css_class='col-md-6'),
+                    Column('salary', css_class='col-md-6'),
+                ),
+                Row(
+                    Column('is_active', css_class='col-md-6'),
+                    Column('is_class_teacher', css_class='col-md-6'),
+                ),
+            ),
+        )
+
+    def clean(self):
+        """Validate form data"""
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        password_confirm = cleaned_data.get('password_confirm')
+
+        # Validate password match
+        if password or password_confirm:
+            if password != password_confirm:
+                raise ValidationError('كلمتا المرور غير متطابقتين')
+
+        # Validate username uniqueness for new teachers
+        if not self.instance.pk:
+            username = cleaned_data.get('username')
+            if username and User.objects.filter(username=username).exists():
+                raise ValidationError({'username': 'اسم المستخدم موجود بالفعل'})
+
+        # Validate employee_id uniqueness within school
+        from accounts.models import TeacherProfile
+        employee_id = cleaned_data.get('employee_id')
+        school = cleaned_data.get('school') or self.school
+        if employee_id and school:
+            qs = TeacherProfile.objects.filter(school=school, employee_id=employee_id)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError({'employee_id': 'الرقم الوظيفي موجود بالفعل في هذه المدرسة'})
+
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        """Save teacher profile and associated user"""
+        # Get or create user
+        if self.instance.pk:
+            # Editing existing teacher
+            user = self.instance.user
+            user.username = self.cleaned_data['username']
+            user.first_name = self.cleaned_data['first_name']
+            user.last_name = self.cleaned_data['last_name']
+            user.email = self.cleaned_data.get('email', '')
+            user.phone = self.cleaned_data.get('phone', '')
+            user.date_of_birth = self.cleaned_data.get('date_of_birth')
+            user.is_active = self.cleaned_data.get('user_is_active', True)
+
+            # Update password if provided
+            password = self.cleaned_data.get('password')
+            if password:
+                user.set_password(password)
+
+            user.save()
+        else:
+            # Creating new teacher - use create_user to properly hash password
+            user = User.objects.create_user(
+                username=self.cleaned_data['username'],
+                password=self.cleaned_data['password'],
+                first_name=self.cleaned_data['first_name'],
+                last_name=self.cleaned_data['last_name'],
+                email=self.cleaned_data.get('email', ''),
+                phone=self.cleaned_data.get('phone', ''),
+                date_of_birth=self.cleaned_data.get('date_of_birth'),
+                user_type=User.TEACHER,
+                is_staff=True,
+                is_active=self.cleaned_data.get('user_is_active', True),
+            )
+
+        # Save teacher profile
+        teacher_profile = super().save(commit=False)
+        teacher_profile.user = user
+
+        # Set school
+        if self.request_user and self.request_user.is_superuser:
+            teacher_profile.school = self.cleaned_data.get('school') or self.school
+        else:
+            teacher_profile.school = self.school
+
+        if commit:
+            teacher_profile.save()
+
+        return teacher_profile

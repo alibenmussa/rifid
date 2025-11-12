@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title mb-4">{{ template.name }}</h4>
+
+                <div class="mb-3">
+                    <span class="badge bg-primary">{{ template.get_target_audience_display }}</span>
+                    <span class="badge bg-info">{{ template.get_send_frequency_display }}</span>
+                </div>
+
+                {% if period_stats %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>الفترة</th>
+                                <th>تاريخ البداية</th>
+                                <th>تاريخ الانتهاء</th>
+                                <th>الحالة</th>
+                                <th>المرسلة</th>
+                                <th>المكتملة</th>
+                                <th>المعلقة</th>
+                                <th>نسبة الإكمال</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in period_stats %}
+                            <tr>
+                                <td>
+                                    {% if stat.period.is_active %}
+                                        <span class="badge bg-success">نشطة</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">منتهية</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ stat.period.start_date|date:"Y-m-d" }}</td>
+                                <td>{{ stat.period.end_date|date:"Y-m-d" }}</td>
+                                <td>
+                                    {% if stat.period.is_expired %}
+                                        <span class="text-danger"><i class="bi bi-clock"></i> منتهية</span>
+                                    {% else %}
+                                        <span class="text-success"><i class="bi bi-check-circle"></i> نشطة</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-primary">{{ stat.total }}</span></td>
+                                <td><span class="badge bg-success">{{ stat.completed }}</span></td>
+                                <td><span class="badge bg-warning">{{ stat.pending }}</span></td>
+                                <td>
+                                    <div class="progress" style="min-width: 100px;">
+                                        <div class="progress-bar" role="progressbar" style="width: {{ stat.completion_rate }}%;"
+                                             aria-valuenow="{{ stat.completion_rate }}" aria-valuemin="0" aria-valuemax="100">
+                                            {{ stat.completion_rate }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="{% url 'dashboard:period_detail' stat.period.id %}" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i> التفاصيل
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    لا توجد فترات لهذا الاستطلاع بعد
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

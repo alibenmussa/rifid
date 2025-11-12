@@ -17,8 +17,63 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from survey.forms import TemplateForm, TemplateFieldForm
-from survey.models import Template, TemplateField
+from survey.models import Template, TemplateField, SurveyPeriod, SurveyDistribution
 from survey.tables import TemplateTable
+from survey.services import create_survey_distribution, get_survey_recipients, send_survey_notifications
+
+
+@login_required
+def template_target_selection(request, view=Template.FOOD):
+    """
+    View to select target audience for new survey template
+    Shows 4 cards: Guardians, Teachers, Employees, All
+    """
+    if not request.user.has_perm('survey.add_template'):
+        raise PermissionDenied()
+
+    context = {
+        "bar": {
+            "main": False,
+            "title": "إنشاء استطلاع جديد - اختر المتلقي",
+            "back": reverse('dashboard:template_list'),
+        },
+        "targets": [
+            {
+                "key": Template.TARGET_GUARDIANS,
+                "name": "أولياء الأمور",
+                "icon": "bi bi-people-fill",
+                "description": "استطلاع لأولياء أمور الطلاب",
+                "color": "primary",
+                "url": reverse('dashboard:template_add_with_target', kwargs={'target_audience': Template.TARGET_GUARDIANS})
+            },
+            {
+                "key": Template.TARGET_TEACHERS,
+                "name": "المعلمون",
+                "icon": "bi bi-person-workspace",
+                "description": "استطلاع للمعلمين في المدرسة",
+                "color": "success",
+                "url": reverse('dashboard:template_add_with_target', kwargs={'target_audience': Template.TARGET_TEACHERS})
+            },
+            {
+                "key": Template.TARGET_EMPLOYEES,
+                "name": "الموظفون",
+                "icon": "bi bi-person-badge-fill",
+                "description": "استطلاع للموظفين في المدرسة",
+                "color": "info",
+                "url": reverse('dashboard:template_add_with_target', kwargs={'target_audience': Template.TARGET_EMPLOYEES})
+            },
+            {
+                "key": Template.TARGET_ALL,
+                "name": "الجميع",
+                "icon": "bi bi-globe",
+                "description": "استطلاع لجميع المستخدمين",
+                "color": "warning",
+                "url": reverse('dashboard:template_add_with_target', kwargs={'target_audience': Template.TARGET_ALL})
+            },
+        ]
+    }
+
+    return render(request, 'survey/target_selection.html', context)
 
 
 @login_required
@@ -60,7 +115,7 @@ def template_list(request, view=Template.FOOD):
             "buttons": [
                 {
                     "label": "إضافة استطلاع رأي",
-                    "url": reverse('dashboard:template_add')
+                    "url": reverse('dashboard:template_target_selection')
                 }
             ]
         }
@@ -71,7 +126,7 @@ def template_list(request, view=Template.FOOD):
 
 @login_required
 # @permission_required('portal.sitecategory', raise_exception=True)
-def template_form(request, template_id=None, view=Template.FOOD):
+def template_form(request, template_id=None, target_audience=None, view=Template.FOOD):
     if template_id and not request.user.has_perm('survey.change_template'):
         raise PermissionDenied()
     elif not template_id and not request.user.has_perm('survey.add_template'):
@@ -84,7 +139,14 @@ def template_form(request, template_id=None, view=Template.FOOD):
     if template and template.school and template.school != school and not request.user.is_superuser:
         raise PermissionDenied('ليس لديك صلاحية لتعديل هذا النموذج.')
 
-    form = TemplateForm(data=request.POST or None, instance=template, type=view)
+    # Pass target_audience and school to the form
+    form = TemplateForm(
+        data=request.POST or None,
+        instance=template,
+        type=view,
+        target_audience=target_audience,
+        school=school
+    )
 
     if request.method == "POST" and form.is_valid():
         x = form.save(commit=False)
@@ -97,17 +159,29 @@ def template_form(request, template_id=None, view=Template.FOOD):
                 x.school = school
         else:
             x.updated_by = request.user
+
         x.save()
 
+        # Save M2M relationships (grades)
+        form.save_m2m()
 
         messages.success(request, "تم حفظ النموذج بنجاح")
         return redirect('dashboard:template_list')
 
+    # Build title based on context
+    if template_id:
+        title = "تعديل نموذج"
+    elif target_audience:
+        target_name = dict(Template.TARGET_CHOICES).get(target_audience, "")
+        title = f"إضافة استطلاع لـ {target_name}"
+    else:
+        title = "إضافة نموذج"
+
     context = {
         "form": form,
         "bar": {
-            "title": ("إضافة نموذج" if not template_id else "تعديل نموذج"),
-            "back": reverse('dashboard:template_list'),
+            "title": title,
+            "back": reverse('dashboard:template_target_selection') if not template_id else reverse('dashboard:template_list'),
         }
     }
 
@@ -267,3 +341,144 @@ def template_field_form(request, template_id, field_key, view=Template.FOOD):
     }
 
     return render(request, 'components/crispy.html', context)
+
+
+@login_required
+def template_send(request, template_id, view=Template.FOOD):
+    """
+    Send a manual (once) survey to recipients
+    """
+    if not request.user.has_perm('survey.add_surveyperiod'):
+        raise PermissionDenied()
+
+    school = getattr(request, 'school', None)
+    template = get_object_or_404(Template, pk=template_id, type=view)
+
+    # Check permissions
+    if template.school and template.school != school and not request.user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لإرسال هذا الاستطلاع.')
+
+    # Only allow sending for "once" frequency surveys
+    if template.send_frequency != Template.FREQ_ONCE:
+        messages.error(request, 'هذا الاستطلاع متكرر ويتم إرساله تلقائياً.')
+        return redirect('dashboard:template_list')
+
+    # Calculate recipient count for preview
+    recipients = get_survey_recipients(template, school)
+    recipient_count = len(recipients)
+
+    if request.method == "POST":
+        try:
+            # Create period and distributions
+            period, distributions = create_survey_distribution(
+                survey=template,
+                school=school,
+                sent_by=request.user
+            )
+
+            # Send notifications
+            send_survey_notifications(distributions)
+
+            messages.success(
+                request,
+                f'تم إرسال الاستطلاع بنجاح إلى {len(distributions)} مستخدم'
+            )
+            return redirect('dashboard:template_periods', template_id=template.id)
+
+        except Exception as e:
+            messages.error(request, f'حدث خطأ أثناء إرسال الاستطلاع: {str(e)}')
+
+    context = {
+        "template": template,
+        "recipient_count": recipient_count,
+        "school": school,
+        "bar": {
+            "title": f"إرسال استطلاع: {template.name}",
+            "back": reverse('dashboard:template_list'),
+        }
+    }
+
+    return render(request, 'survey/template_send.html', context)
+
+
+@login_required
+def template_periods(request, template_id, view=Template.FOOD):
+    """
+    View all periods for a survey with statistics
+    """
+    school = getattr(request, 'school', None)
+    template = get_object_or_404(Template, pk=template_id, type=view)
+
+    # Check permissions
+    if template.school and template.school != school and not request.user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لعرض هذا الاستطلاع.')
+
+    # Get all periods for this survey
+    if request.user.is_superuser:
+        periods = template.periods.all()
+    elif school:
+        periods = template.periods.filter(school=school)
+    else:
+        periods = template.periods.none()
+
+    # Add statistics to each period
+    period_stats = []
+    for period in periods:
+        stats = {
+            'period': period,
+            'total': period.distributions.count(),
+            'completed': period.distributions.filter(is_completed=True).count(),
+            'pending': period.distributions.filter(is_completed=False).count(),
+            'completion_rate': period.completion_rate,
+        }
+        period_stats.append(stats)
+
+    context = {
+        "template": template,
+        "period_stats": period_stats,
+        "bar": {
+            "title": f"فترات استطلاع: {template.name}",
+            "back": reverse('dashboard:template_list'),
+        }
+    }
+
+    return render(request, 'survey/template_periods.html', context)
+
+
+@login_required
+def period_detail(request, period_id):
+    """
+    View detailed distributions for a specific period
+    """
+    school = getattr(request, 'school', None)
+    period = get_object_or_404(SurveyPeriod, pk=period_id)
+
+    # Check permissions
+    if period.school and period.school != school and not request.user.is_superuser:
+        raise PermissionDenied('ليس لديك صلاحية لعرض هذه الفترة.')
+
+    # Get all distributions for this period
+    distributions = period.distributions.select_related('user', 'student', 'response').all()
+
+    # Filter completed and pending
+    completed_distributions = distributions.filter(is_completed=True)
+    pending_distributions = distributions.filter(is_completed=False)
+
+    context = {
+        "period": period,
+        "distributions": distributions,
+        "completed_distributions": completed_distributions,
+        "pending_distributions": pending_distributions,
+        "stats": {
+            'total': distributions.count(),
+            'completed': completed_distributions.count(),
+            'pending': pending_distributions.count(),
+            'completion_rate': period.completion_rate,
+        },
+        "bar": {
+            "title": f"تفاصيل فترة: {period.survey.name}",
+            "back": reverse('dashboard:template_periods', kwargs={'template_id': period.survey.id}),
+        }
+    }
+
+    return render(request, 'survey/period_detail.html', context)

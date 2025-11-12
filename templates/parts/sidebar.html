@@ -59,7 +59,7 @@
 
                 <li class="sidebar-item  has-sub">
                     <a href="#" class='sidebar-link'>
-                        <i class="bi bi-person"></i>
+                        <i class="bi bi-people-fill"></i>
                         <span>الطلاب</span>
                     </a>
 
@@ -75,19 +75,19 @@
                 </li>
                 <li class="sidebar-item  has-sub">
                     <a href="#" class='sidebar-link'>
-                        <i class="bi bi-person"></i>
-                        <span>الأساتذة</span>
+                        <i class="bi bi-mortarboard-fill"></i>
+                        <span>المعلمون</span>
                     </a>
 
                     <ul class="submenu ">
                         <li class="submenu-item  ">
-                            <a href="#" class="submenu-link">عرض الأساتذة</a>
+                            <a href="{% url 'dashboard:teacher_list' %}" class="submenu-link">عرض المعلمين</a>
                         </li>
                     </ul>
                 </li>
                 <li class="sidebar-item  has-sub">
                     <a href="#" class='sidebar-link'>
-                        <i class="bi bi-person"></i>
+                        <i class="bi bi-person-hearts"></i>
                         <span>أولياء الأمور</span>
                     </a>
 
@@ -99,7 +99,7 @@
                 </li>
                 <li class="sidebar-item  has-sub">
                     <a href="#" class='sidebar-link'>
-                        <i class="bi bi-person"></i>
+                        <i class="bi bi-clipboard-check-fill"></i>
                         <span>الاستبيانات</span>
                     </a>
 
@@ -117,10 +117,26 @@
 
                 <li  class="sidebar-item  ">
                     <a href="{% url 'dashboard:employee_list' %}" class='sidebar-link'>
-                        <i class="bi bi-person"></i>
+                        <i class="bi bi-person-badge-fill"></i>
                         <span>المستخدمين</span>
                     </a>
                 </li>
+
+                {% if user.is_superuser %}
+                <li class="sidebar-item  ">
+                    <a href="{% url 'dashboard:school_list' %}" class='sidebar-link'>
+                        <i class="bi bi-building"></i>
+                        <span>المدارس</span>
+                    </a>
+                </li>
+                {% elif user.employee_profile %}
+                <li class="sidebar-item  ">
+                    <a href="{% url 'dashboard:my_school' %}" class='sidebar-link'>
+                        <i class="bi bi-gear-fill"></i>
+                        <span>إعدادات المدرسة</span>
+                    </a>
+                </li>
+                {% endif %}
 
             </ul>
         </div>

@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+    <!-- School Header with Logo -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 text-center">
+                            {% if school.logo %}
+                                <img src="{{ school.logo.url }}" alt="{{ school.name }}"
+                                     class="img-fluid rounded" style="max-height: 120px;">
+                            {% else %}
+                                <div class="school-placeholder bg-primary text-white d-flex align-items-center justify-content-center rounded"
+                                     style="width: 120px; height: 120px; margin: 0 auto; font-size: 2.5rem;">
+                                    <i class="bi bi-building"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-7">
+                            <h3 class="mb-2">{{ school.name }}</h3>
+                            <p class="text-muted mb-1">
+                                <i class="bi bi-code-square me-2"></i>
+                                <strong>رمز المدرسة:</strong> {{ school.code }}
+                            </p>
+                            {% if school.principal_name %}
+                            <p class="text-muted mb-1">
+                                <i class="bi bi-person-badge me-2"></i>
+                                <strong>المدير:</strong> {{ school.principal_name }}
+                            </p>
+                            {% endif %}
+                            {% if school.phone %}
+                            <p class="text-muted mb-1">
+                                <i class="bi bi-telephone me-2"></i>
+                                <strong>الهاتف:</strong> {{ school.phone }}
+                            </p>
+                            {% endif %}
+                            {% if school.email %}
+                            <p class="text-muted mb-0">
+                                <i class="bi bi-envelope me-2"></i>
+                                <strong>البريد الإلكتروني:</strong> {{ school.email }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <div class="mb-2">
+                                {% if school.is_active %}
+                                    <span class="badge bg-success fs-6">نشط</span>
+                                {% else %}
+                                    <span class="badge bg-secondary fs-6">غير نشط</span>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted d-block">
+                                تاريخ الإنشاء: {{ school.created_at|date:"Y-m-d" }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon blue mx-auto">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <h3 class="text-primary">{{ stats.total_students }}</h3>
+                    <p class="text-muted mb-0">طالب</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon green mx-auto">
+                        <i class="bi bi-person-badge"></i>
+                    </div>
+                    <h3 class="text-success">{{ stats.total_teachers }}</h3>
+                    <p class="text-muted mb-0">معلم</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon purple mx-auto">
+                        <i class="bi bi-person-workspace"></i>
+                    </div>
+                    <h3 class="text-purple">{{ stats.total_employees }}</h3>
+                    <p class="text-muted mb-0">موظف</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon orange mx-auto">
+                        <i class="bi bi-people"></i>
+                    </div>
+                    <h3 class="text-warning">{{ stats.total_guardians }}</h3>
+                    <p class="text-muted mb-0">ولي أمر</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon green mx-auto">
+                        <i class="bi bi-journal-check"></i>
+                    </div>
+                    <h3 class="text-info">{{ stats.total_grades }}</h3>
+                    <p class="text-muted mb-0">صف دراسي</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon blue mx-auto">
+                        <i class="bi bi-door-open"></i>
+                    </div>
+                    <h3 class="text-primary">{{ stats.total_classes }}</h3>
+                    <p class="text-muted mb-0">فصل دراسي</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabbed Content -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link {% if active_tab == 'info' %}active{% endif %}"
+                               href="?tab=info" role="tab">
+                                <i class="bi bi-info-circle me-2"></i>معلومات عامة
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if active_tab == 'grades' %}active{% endif %}"
+                               href="?tab=grades" role="tab">
+                                <i class="bi bi-journal-check me-2"></i>الصفوف الدراسية
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if active_tab == 'employees' %}active{% endif %}"
+                               href="?tab=employees" role="tab">
+                                <i class="bi bi-people me-2"></i>الموظفون
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if active_tab == 'years' %}active{% endif %}"
+                               href="?tab=years" role="tab">
+                                <i class="bi bi-calendar-range me-2"></i>السنوات الدراسية
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- General Information Tab -->
+                        {% if active_tab == 'info' %}
+                        <div class="tab-pane fade show active">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">معلومات المدرسة</h5>
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <th width="40%">اسم المدرسة:</th>
+                                            <td>{{ school.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>رمز المدرسة:</th>
+                                            <td><code class="text-primary">{{ school.code }}</code></td>
+                                        </tr>
+                                        {% if school.principal_name %}
+                                        <tr>
+                                            <th>اسم المدير:</th>
+                                            <td>{{ school.principal_name }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if school.phone %}
+                                        <tr>
+                                            <th>الهاتف:</th>
+                                            <td><a href="tel:{{ school.phone }}" class="text-decoration-none">{{ school.phone }}</a></td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if school.email %}
+                                        <tr>
+                                            <th>البريد الإلكتروني:</th>
+                                            <td><a href="mailto:{{ school.email }}" class="text-decoration-none">{{ school.email }}</a></td>
+                                        </tr>
+                                        {% endif %}
+                                        {% if school.address %}
+                                        <tr>
+                                            <th>العنوان:</th>
+                                            <td>{{ school.address }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        <tr>
+                                            <th>الحالة:</th>
+                                            <td>
+                                                {% if school.is_active %}
+                                                    <span class="badge bg-success">نشط</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">غير نشط</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">السنة الدراسية الحالية</h5>
+                                    {% with current_year=academic_years|first %}
+                                    {% if current_year and current_year.is_current %}
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <th width="40%">السنة الدراسية:</th>
+                                            <td>{{ current_year.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>تاريخ البداية:</th>
+                                            <td>{{ current_year.start_date|date:"Y-m-d" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>تاريخ النهاية:</th>
+                                            <td>{{ current_year.end_date|date:"Y-m-d" }}</td>
+                                        </tr>
+                                    </table>
+                                    {% else %}
+                                    <div class="alert alert-warning">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>
+                                        لم يتم تحديد سنة دراسية حالية
+                                    </div>
+                                    {% endif %}
+                                    {% endwith %}
+
+                                    <h5 class="mb-3 mt-4">معلومات النظام</h5>
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <th width="40%">تاريخ الإنشاء:</th>
+                                            <td>{{ school.created_at|date:"Y-m-d H:i" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>آخر تحديث:</th>
+                                            <td>{{ school.updated_at|date:"Y-m-d H:i" }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Grades Tab -->
+                        {% if active_tab == 'grades' %}
+                        <div class="tab-pane fade show active">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">الصفوف الدراسية ({{ grades.count }})</h5>
+                                <a href="{% url 'dashboard:grade_create' %}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-plus"></i> إضافة صف
+                                </a>
+                            </div>
+
+                            {% if grades %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>اسم الصف</th>
+                                            <th>نوع المرحلة</th>
+                                            <th>المستوى</th>
+                                            <th>عدد الفصول</th>
+                                            <th>عدد الطلاب</th>
+                                            <th>الحالة</th>
+                                            <th>الإجراءات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for grade in grades %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'dashboard:grade_detail' grade.id %}" class="text-decoration-none fw-bold">
+                                                    {{ grade.name }}
+                                                </a>
+                                            </td>
+                                            <td>{{ grade.get_grade_type_display }}</td>
+                                            <td>{{ grade.level }}</td>
+                                            <td><span class="badge bg-info">{{ grade.classes_count }}</span></td>
+                                            <td><span class="badge bg-primary">{{ grade.students_count }}</span></td>
+                                            <td>
+                                                {% if grade.is_active %}
+                                                    <span class="badge bg-success">نشط</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">غير نشط</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'dashboard:grade_detail' grade.id %}"
+                                                   class="btn btn-sm btn-outline-primary" title="عرض">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <a href="{% url 'dashboard:grade_edit' grade.id %}"
+                                                   class="btn btn-sm btn-outline-warning" title="تعديل">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                لا توجد صفوف دراسية مسجلة حتى الآن
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Employees Tab -->
+                        {% if active_tab == 'employees' %}
+                        <div class="tab-pane fade show active">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">الموظفون ({{ employees.count }})</h5>
+                                <div>
+                                    <a href="{% url 'dashboard:teacher_create' %}" class="btn btn-sm btn-success me-2">
+                                        <i class="bi bi-plus"></i> إضافة معلم
+                                    </a>
+                                    <a href="{% url 'dashboard:employee_create' %}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-plus"></i> إضافة موظف
+                                    </a>
+                                </div>
+                            </div>
+
+                            {% if employees %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>الاسم</th>
+                                            <th>اسم المستخدم</th>
+                                            <th>النوع</th>
+                                            <th>الرقم الوظيفي</th>
+                                            <th>البريد الإلكتروني</th>
+                                            <th>الحالة</th>
+                                            <th>الإجراءات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for employee in employees %}
+                                        <tr>
+                                            <td>{{ employee.get_display_name }}</td>
+                                            <td><code>{{ employee.username }}</code></td>
+                                            <td>
+                                                {% if employee.teacher_profile %}
+                                                    <span class="badge bg-success">معلم</span>
+                                                {% else %}
+                                                    <span class="badge bg-primary">موظف</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if employee.teacher_profile %}
+                                                    {{ employee.teacher_profile.employee_id|default:"—" }}
+                                                {% elif employee.employee_profile %}
+                                                    {{ employee.employee_profile.employee_id|default:"—" }}
+                                                {% else %}
+                                                    —
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ employee.email|default:"—" }}</td>
+                                            <td>
+                                                {% if employee.is_active %}
+                                                    <span class="badge bg-success">نشط</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">غير نشط</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if employee.teacher_profile %}
+                                                    <a href="{% url 'dashboard:teacher_detail' employee.teacher_profile.id %}"
+                                                       class="btn btn-sm btn-outline-primary" title="عرض">
+                                                        <i class="bi bi-eye"></i>
+                                                    </a>
+                                                {% elif employee.employee_profile %}
+                                                    <a href="{% url 'dashboard:employee_detail' employee.id %}"
+                                                       class="btn btn-sm btn-outline-primary" title="عرض">
+                                                        <i class="bi bi-eye"></i>
+                                                    </a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                لا يوجد موظفون مسجلون حتى الآن
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Academic Years Tab -->
+                        {% if active_tab == 'years' %}
+                        <div class="tab-pane fade show active">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">السنوات الدراسية ({{ academic_years.count }})</h5>
+                            </div>
+
+                            {% if academic_years %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>السنة الدراسية</th>
+                                            <th>تاريخ البداية</th>
+                                            <th>تاريخ النهاية</th>
+                                            <th>الحالة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for year in academic_years %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ year.name }}</strong>
+                                                {% if year.is_current %}
+                                                    <span class="badge bg-primary ms-2">الحالية</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ year.start_date|date:"Y-m-d" }}</td>
+                                            <td>{{ year.end_date|date:"Y-m-d" }}</td>
+                                            <td>
+                                                {% if year.is_current %}
+                                                    <span class="badge bg-success">نشطة</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">منتهية</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                لا توجد سنوات دراسية مسجلة حتى الآن
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}
+
+{% block scripts %}
+<script>
+function confirmDelete(url, name) {
+    if (confirm(`هل أنت متأكد من حذف ${name}؟`)) {
+        window.location.href = url;
+    }
+}
+</script>
+{% endblock scripts %}

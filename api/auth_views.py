@@ -232,7 +232,7 @@ class RegistrationCompleteView(APIView):
 
     @swagger_auto_schema(
         operation_summary="إكمال التسجيل",
-        operation_description="إكمال عملية التسجيل بإدخال كلمة المرور فقط (رقم الهاتف محفوظ مسبقاً)",
+        operation_description="إكمال عملية التسجيل بإدخال: الكود، رقم الهاتف، كلمة المرور، تأكيد كلمة المرور",
         request_body=RegistrationCompleteSerializer,
         responses={
             201: RegistrationCompleteOutputSerializer,
@@ -327,3 +327,69 @@ class AuthLoginView(APIView):
 
         output_serializer = AuthLoginOutputSerializer(response_data)
         return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+
+class UpdateFCMTokenView(APIView):
+    """
+    Update Firebase Cloud Messaging token for authenticated user
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="تحديث رمز FCM",
+        operation_description="تحديث رمز Firebase Cloud Messaging للمستخدم المصادق عليه",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['fcm_token'],
+            properties={
+                'fcm_token': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='رمز FCM من Firebase'
+                )
+            }
+        ),
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    'message': openapi.Schema(type=openapi.TYPE_STRING),
+                    'fcm_token': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            ),
+            400: "بيانات غير صحيحة"
+        },
+    )
+    def post(self, request):
+        """
+        Update user's FCM token
+        """
+        fcm_token = request.data.get('fcm_token')
+        
+        if not fcm_token:
+            return Response(
+                {'detail': 'يجب إرسال رمز FCM.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate token length (FCM tokens are typically 152+ characters)
+        if len(fcm_token) < 50:
+            return Response(
+                {'detail': 'رمز FCM غير صحيح.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update user's FCM token
+        user = request.user
+        user.fcm_token = fcm_token
+        user.save(update_fields=['fcm_token', 'updated_at'])
+        
+        return Response(
+            {
+                'success': True,
+                'message': 'تم تحديث رمز FCM بنجاح',
+                'fcm_token': user.fcm_token
+            },
+            status=status.HTTP_200_OK
+        )

@@ -14,43 +14,84 @@ from survey.models import Template, TemplateField
 
 
 class TemplateForm(forms.ModelForm):
-    # category = TreeNodeChoiceField(
-    #     queryset=Template.objects.none(),
-    #     # level_indicator=mark_safe("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"),
-    #     level_indicator=mark_safe("&nbsp;&nbsp;&nbsp;&nbsp;"),
-    #     # level_indicator=mark_safe("&nbsp;&nbsp;┤──"),
-    #     # empty_label=None,
-    #     required=True,
-    #     label="التصنيف",
-    #     widget=forms.Select(attrs={"class": "form-control form-select2"}),
-    # )
-
     class Meta:
         model = Template
         fields = [
             'name',
-            'default_frequency',
+            'target_audience',
+            'send_frequency',
+            'grades',
         ]
+        widgets = {
+            'grades': forms.CheckboxSelectMultiple(),
+        }
 
-    def __init__(self, type, *args, **kwargs):
+    def __init__(self, type, target_audience=None, school=None, *args, **kwargs):
         self.type = type
+        self.target_audience = target_audience
+        self.school = school
         super().__init__(*args, **kwargs)
-        # self.fields['category'].queryset = self.fields['category'].queryset.exclude(template__isnull=False)
 
-        # if self.type == Template.SURVEY:
-        #     self.fields["name"].required = True
-        #     self.fields.pop("category")
+        # If target_audience is provided (from URL), set it and disable the field
+        if target_audience:
+            self.fields['target_audience'].initial = target_audience
+            self.fields['target_audience'].widget = forms.HiddenInput()
+
+        # Filter grades to only show grades from the current school
+        if school:
+            self.fields['grades'].queryset = school.grades.filter(is_active=True)
+        else:
+            # If no school context, show all grades (for superuser)
+            from core.models import Grade
+            self.fields['grades'].queryset = Grade.objects.filter(is_active=True)
 
         self.helper = FormHelper()
         self.helper.form_tag = False
 
-        self.helper.layout = layout.Layout(
-            layout.Div(
-                layout.Column('name', css_class='col-md-6'),
-                layout.Column('default_frequency', css_class='col-md-6'),
-                css_class='row'
-            ),
-        )
+        # Build layout based on whether we're showing target_audience or not
+        if target_audience:
+            # Target is already selected, show appropriate fields
+            if target_audience == Template.TARGET_GUARDIANS:
+                # Show grades field for guardian surveys
+                self.helper.layout = layout.Layout(
+                    layout.Field('target_audience'),  # Hidden field
+                    layout.Div(
+                        layout.Column('name', css_class='col-md-6'),
+                        layout.Column('send_frequency', css_class='col-md-6'),
+                        css_class='row'
+                    ),
+                    layout.Div(
+                        layout.Column('grades', css_class='col-md-12'),
+                        css_class='row'
+                    ),
+                )
+            else:
+                # No grades field for other target types
+                self.helper.layout = layout.Layout(
+                    layout.Field('target_audience'),  # Hidden field
+                    layout.Div(
+                        layout.Column('name', css_class='col-md-6'),
+                        layout.Column('send_frequency', css_class='col-md-6'),
+                        css_class='row'
+                    ),
+                )
+        else:
+            # Editing existing template, show all fields
+            self.helper.layout = layout.Layout(
+                layout.Div(
+                    layout.Column('name', css_class='col-md-6'),
+                    layout.Column('target_audience', css_class='col-md-6'),
+                    css_class='row'
+                ),
+                layout.Div(
+                    layout.Column('send_frequency', css_class='col-md-6'),
+                    css_class='row'
+                ),
+                layout.Div(
+                    layout.Column('grades', css_class='col-md-12'),
+                    css_class='row'
+                ),
+            )
 
 
 class TemplateFieldForm(forms.ModelForm):

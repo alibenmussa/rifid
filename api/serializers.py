@@ -4,7 +4,7 @@ from rest_framework import serializers
 from django.utils import timezone
 from collections.abc import Mapping
 
-from survey.models import Template, TemplateField, Response as SurveyResponse, AdditionalField
+from survey.models import Template, TemplateField, Response as SurveyResponse, AdditionalField, SurveyPeriod, SurveyDistribution
 from core.models import (
     School, AcademicYear, Grade, SchoolClass,
     Student, Guardian, GuardianStudent,
@@ -44,14 +44,15 @@ class SchoolContextMixin:
 
 class SchoolBasicSerializer(serializers.ModelSerializer):
     """Basic school information"""
+    
 
     class Meta:
         model = School
         fields = [
-            'id', 'name', 'code', 'address', 'phone',
+            'id', 'name', 'code', 'logo', 'address', 'phone',
             'email', 'principal_name', 'is_active'
         ]
-        read_only_fields = ['id', 'code']
+        read_only_fields = ['id', 'code',]
 
 
 class AcademicYearSerializer(serializers.ModelSerializer, TimestampMixin):
@@ -507,26 +508,34 @@ class StudentTimelineAttachmentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
     file_name = serializers.SerializerMethodField()
     file_size_display = serializers.SerializerMethodField()
+    extension = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentTimelineAttachment
         fields = [
             'id', 'file_url', 'file_name', 'file_size',
-            'file_size_display', 'is_image', 'created_at'
+            'file_size_display', 'extension', 'is_image', 'created_at'
         ]
-        read_only_fields = ['id', 'file_url', 'file_name', 'file_size_display', 'is_image', 'created_at']
+        read_only_fields = ['id', 'file_url', 'file_name', 'file_size_display', 'extension', 'is_image', 'created_at']
 
     def get_file_url(self, obj):
-        """Get full file URL"""
-        request = self.context.get('request')
-        if obj.file and request:
-            return request.build_absolute_uri(obj.file.url)
+        """Get relative file URL (without host)"""
+        if obj.file:
+            return obj.file.url
         return None
 
     def get_file_name(self, obj):
         """Get file name without path"""
         if obj.file:
             return obj.file.name.split('/')[-1]
+        return None
+
+    def get_extension(self, obj):
+        """Get file extension"""
+        if obj.file:
+            file_name = obj.file.name.split('/')[-1]
+            if '.' in file_name:
+                return file_name.split('.')[-1].lower()
         return None
 
     def get_file_size_display(self, obj):
@@ -580,7 +589,8 @@ class StudentTimelineDetailSerializer(serializers.ModelSerializer, TimestampMixi
     student_id = serializers.IntegerField(source='student.id', read_only=True)
     created_by_info = UserBasicSerializer(source='created_by', read_only=True)
     content_type_display = serializers.CharField(source='get_content_type_display', read_only=True)
-    attachments = StudentTimelineAttachmentSerializer(many=True, read_only=True)
+    images = serializers.SerializerMethodField()
+    attachments = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentTimeline
@@ -591,10 +601,52 @@ class StudentTimelineDetailSerializer(serializers.ModelSerializer, TimestampMixi
             'is_visible_to_guardian', 'is_visible_to_student',
             'is_pinned',
             'created_by_info',
+            'images',
             'attachments',
             'created_at', 'updated_at'
         ]
         read_only_fields = fields
+
+    def get_images(self, obj):
+        """Get image attachments only (png, jpg, jpeg)"""
+        image_extensions = ['png', 'jpg', 'jpeg']
+        image_attachments = []
+
+        for attachment in obj.attachments.all():
+            if attachment.file:
+                file_name = attachment.file.name.split('/')[-1]
+                if '.' in file_name:
+                    ext = file_name.split('.')[-1].lower()
+                    if ext in image_extensions:
+                        image_attachments.append(attachment)
+
+        return StudentTimelineAttachmentSerializer(
+            image_attachments,
+            many=True,
+            context=self.context
+        ).data
+
+    def get_attachments(self, obj):
+        """Get non-image attachments (everything except png, jpg, jpeg)"""
+        image_extensions = ['png', 'jpg', 'jpeg']
+        file_attachments = []
+
+        for attachment in obj.attachments.all():
+            if attachment.file:
+                file_name = attachment.file.name.split('/')[-1]
+                if '.' in file_name:
+                    ext = file_name.split('.')[-1].lower()
+                    if ext not in image_extensions:
+                        file_attachments.append(attachment)
+                else:
+                    # Files without extension go to attachments
+                    file_attachments.append(attachment)
+
+        return StudentTimelineAttachmentSerializer(
+            file_attachments,
+            many=True,
+            context=self.context
+        ).data
 
 
 class StudentTimelineCreateSerializer(serializers.ModelSerializer):
@@ -748,26 +800,28 @@ class TemplateListItemSerializer(serializers.ModelSerializer):
 
     available_now = serializers.SerializerMethodField()
     next_available_at = serializers.SerializerMethodField()
-    frequency_display = serializers.CharField(source='get_default_frequency_display', read_only=True)
+    frequency_display = serializers.CharField(source='get_send_frequency_display', read_only=True)
+    target_audience_display = serializers.CharField(source='get_target_audience_display', read_only=True)
 
     class Meta:
         model = Template
         fields = [
-            'id', 'name', 'default_frequency', 'frequency_display',
+            'id', 'name', 'target_audience', 'target_audience_display',
+            'send_frequency', 'frequency_display',
             'available_now', 'next_available_at'
         ]
-        read_only_fields = ['id', 'frequency_display']
+        read_only_fields = ['id', 'frequency_display', 'target_audience_display']
 
     def get_available_now(self, obj):
         """Check if survey is available now"""
         last_map = (self.context or {}).get("last_map", {})
-        return is_available_now(last_map.get(obj.id), obj.default_frequency)
+        return is_available_now(last_map.get(obj.id), obj.send_frequency)
 
     def get_next_available_at(self, obj):
         """Get next available date"""
         last_map = (self.context or {}).get("last_map", {})
         last_dt = last_map.get(obj.id)
-        return next_available_at(last_dt, obj.default_frequency) if last_dt else None
+        return next_available_at(last_dt, obj.send_frequency) if last_dt else None
 
 
 class TemplateDetailSerializer(serializers.ModelSerializer):
@@ -775,15 +829,16 @@ class TemplateDetailSerializer(serializers.ModelSerializer):
 
     # Renamed 'fields' to 'template_fields' to avoid conflict
     template_fields = serializers.SerializerMethodField()
-    frequency_display = serializers.CharField(source='get_default_frequency_display', read_only=True)
+    frequency_display = serializers.CharField(source='get_send_frequency_display', read_only=True)
+    target_audience_display = serializers.CharField(source='get_target_audience_display', read_only=True)
 
     class Meta:
         model = Template
         fields = [
-            'id', 'name', 'default_frequency', 'frequency_display', 'template_fields'
-            # Changed 'fields' to 'template_fields'
+            'id', 'name', 'target_audience', 'target_audience_display',
+            'send_frequency', 'frequency_display', 'template_fields'
         ]
-        read_only_fields = ['id', 'frequency_display']
+        read_only_fields = ['id', 'frequency_display', 'target_audience_display']
 
     def get_template_fields(self, obj):  # Renamed from get_fields to get_template_fields
         """Get public template fields"""
@@ -910,7 +965,7 @@ class ResponseCreateSerializer(serializers.Serializer):
             .first()
         )
 
-        if not is_available_now(last_response, attrs["template"].default_frequency):
+        if not is_available_now(last_response, attrs["template"].send_frequency):
             raise serializers.ValidationError({
                 "detail": "الاستبيان غير متاح حالياً لهذا الطالب."
             })
@@ -960,6 +1015,142 @@ class ResponseCreateSerializer(serializers.Serializer):
 
             # Save form data
             form.save(commit=True, parent=None)
+
+        return response
+
+
+class SurveyDistributionListSerializer(serializers.ModelSerializer, TimestampMixin):
+    """Survey distribution list for user's pending/completed surveys"""
+
+    survey_name = serializers.CharField(source="survey.name", read_only=True)
+    survey_id = serializers.IntegerField(source="survey.id", read_only=True)
+    student_name = serializers.SerializerMethodField()
+    deadline = serializers.DateField(source="period.end_date", read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    can_respond = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = SurveyDistribution
+        fields = [
+            'id', 'survey_id', 'survey_name', 'student', 'student_name',
+            'is_completed', 'deadline', 'is_expired', 'can_respond',
+            'sent_at', 'completed_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'survey_id', 'survey_name', 'student_name',
+            'is_completed', 'deadline', 'is_expired', 'can_respond',
+            'sent_at', 'completed_at'
+        ]
+
+    def get_student_name(self, obj):
+        """Get student's full name for guardian surveys"""
+        if obj.student:
+            return f"{obj.student.first_name} {obj.student.last_name}"
+        return None
+
+
+class SurveyDistributionDetailSerializer(serializers.ModelSerializer, TimestampMixin):
+    """Detailed survey distribution with full survey template"""
+
+    survey = TemplateDetailSerializer(read_only=True)
+    student_info = StudentBasicSerializer(source="student", read_only=True)
+    deadline = serializers.DateField(source="period.end_date", read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    can_respond = serializers.BooleanField(read_only=True)
+    response_detail = ResponseDetailSerializer(source="response", read_only=True)
+
+    class Meta:
+        model = SurveyDistribution
+        fields = [
+            'id', 'survey', 'student_info', 'is_completed',
+            'deadline', 'is_expired', 'can_respond',
+            'response_detail', 'sent_at', 'completed_at',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'survey', 'student_info', 'is_completed',
+            'deadline', 'is_expired', 'can_respond', 'response_detail',
+            'sent_at', 'completed_at'
+        ]
+
+
+class DistributionResponseCreateSerializer(serializers.Serializer):
+    """Create response for a specific survey distribution"""
+
+    distribution_id = serializers.IntegerField(required=True)
+    fields = serializers.JSONField(required=True)
+
+    def validate_distribution_id(self, value):
+        """Validate that the distribution exists and belongs to the user"""
+        request = self.context.get("request")
+        if not request:
+            raise serializers.ValidationError("لا يمكن التحقق من المستخدم.")
+
+        try:
+            distribution = SurveyDistribution.objects.select_related(
+                'survey', 'period', 'user', 'student'
+            ).get(id=value, user=request.user)
+        except SurveyDistribution.DoesNotExist:
+            raise serializers.ValidationError("التوزيع غير موجود أو غير مصرح لك.")
+
+        # Check if already completed
+        if distribution.is_completed:
+            raise serializers.ValidationError("تم الإجابة على هذا الاستطلاع مسبقاً.")
+
+        # Check if expired
+        if distribution.is_expired:
+            raise serializers.ValidationError("انتهت صلاحية هذا الاستطلاع.")
+
+        self.context['distribution'] = distribution
+        return value
+
+    def validate_fields(self, value):
+        """Validate fields data"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("البيانات يجب أن تكون في صيغة JSON object.")
+        return value
+
+    def create(self, validated_data):
+        """Create response and link to distribution"""
+        from django.db import transaction
+        from django.utils import timezone
+
+        distribution = self.context['distribution']
+        request = self.context['request']
+        survey = distribution.survey
+        data = validated_data['fields']
+
+        # Get public fields
+        public_fields = survey.fields.filter(is_public=True).order_by("order", "id")
+
+        with transaction.atomic():
+            # Create response
+            response = SurveyResponse.objects.create(
+                template=survey,
+                user=request.user,
+                student=distribution.student
+            )
+
+            # Build and validate form
+            form = survey.build_django_form(
+                ticket=response,
+                data=data,
+                user=request.user,
+                is_public=True,
+                fields=public_fields
+            )
+
+            if not form.is_valid():
+                raise serializers.ValidationError(form.errors)
+
+            # Save form data
+            form.save(commit=True, parent=None)
+
+            # Update distribution
+            distribution.response = response
+            distribution.is_completed = True
+            distribution.completed_at = timezone.now()
+            distribution.save(update_fields=['response', 'is_completed', 'completed_at'])
 
         return response
 
@@ -1064,6 +1255,10 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         max_length=50,
         help_text="كود التسجيل"
     )
+    phone = serializers.CharField(
+        required=True,
+        help_text="رقم الهاتف"
+    )
     password = serializers.CharField(
         required=True,
         min_length=6,
@@ -1098,16 +1293,33 @@ class RegistrationCompleteSerializer(serializers.Serializer):
                 "password_confirm": "كلمات المرور غير متطابقة."
             })
 
-        # Check if phone is already used
-        code = attrs['code']
+        code = attrs['code'].strip().upper()
+        phone_input = (attrs.get('phone') or '').strip().replace(' ', '')
+        if not phone_input:
+            raise serializers.ValidationError({"phone": "رقم الهاتف مطلوب."})
+
         try:
             guardian = Guardian.objects.get(code=code, user__isnull=True)
-            if guardian.phone and User.objects.filter(username=guardian.phone).exists():
-                raise serializers.ValidationError({
-                    "code": "رقم الهاتف المرتبط بهذا الكود مستخدم بالفعل."
-                })
         except Guardian.DoesNotExist:
-            pass
+            raise serializers.ValidationError({
+                "code": "كود التسجيل غير صحيح أو مستخدم بالفعل."
+            })
+
+        guardian_phone = (getattr(guardian, 'phone', '') or '').strip().replace(' ', '')
+        if not guardian_phone:
+            raise serializers.ValidationError({
+                "code": "لا يوجد رقم هاتف مسجل لهذا الولي. يرجى التواصل مع الإدارة."
+            })
+
+        if phone_input != guardian_phone:
+            raise serializers.ValidationError({
+                "phone": "رقم الهاتف لا يطابق السجل لدى المدرسة."
+            })
+
+        if User.objects.filter(username=phone_input).exists():
+            raise serializers.ValidationError({
+                "phone": "هذا الرقم مستخدم بالفعل."
+            })
 
         return attrs
 
@@ -1116,15 +1328,16 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         from django.db import transaction
 
         code = validated_data['code']
+        phone = (validated_data.get('phone') or '').strip().replace(' ', '')
         password = validated_data['password']
 
         with transaction.atomic():
             # Get guardian
             guardian = Guardian.objects.get(code=code, user__isnull=True)
 
-            # Create user account
+            # Create user account using provided phone
             user = User.objects.create_user(
-                username=guardian.phone,
+                username=phone,
                 password=password
             )
 

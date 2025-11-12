@@ -28,7 +28,8 @@ function setTheme(theme, persist = false) {
  */
 function initTheme() {
   //If the user manually set a theme, we'll load that
-  const storedTheme = localStorage.getItem(THEME_KEY)
+  // const storedTheme = localStorage.getItem(THEME_KEY)
+    const storedTheme = "light"
   if (storedTheme) {
     return setTheme(storedTheme)
   }
@@ -49,7 +50,8 @@ function initTheme() {
 
 window.addEventListener('DOMContentLoaded', () => {
   const toggler = document.getElementById("toggle-dark")
-  const theme = localStorage.getItem(THEME_KEY)
+  // const theme = localStorage.getItem(THEME_KEY)
+    const theme = "light"
 
   if(toggler) {
     toggler.checked = theme === "dark"

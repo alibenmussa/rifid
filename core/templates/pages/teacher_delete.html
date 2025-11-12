@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        تأكيد الحذف
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h6>تحذير!</h6>
+                        <p class="mb-0">هذا الإجراء لا يمكن التراجع عنه. سيتم حذف المعلم وحساب المستخدم الخاص به نهائياً.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6>معلومات المعلم المراد حذفه:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>الاسم:</strong> {{ teacher.user.get_display_name }}</li>
+                            <li><strong>الرقم الوظيفي:</strong> {{ teacher.employee_id }}</li>
+                            {% if teacher.subject %}
+                            <li><strong>المادة:</strong> {{ teacher.subject }}</li>
+                            {% endif %}
+                            <li><strong>المدرسة:</strong> {{ teacher.school.name }}</li>
+                            {% if teacher.user.email %}
+                            <li><strong>البريد الإلكتروني:</strong> {{ teacher.user.email }}</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'dashboard:teacher_detail' teacher.id %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> إلغاء
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> تأكيد الحذف
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}

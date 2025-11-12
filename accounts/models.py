@@ -70,6 +70,13 @@ class User(AbstractUser):
         verbose_name="المظهر"
     )
 
+    # Firebase Cloud Messaging token for push notifications
+    fcm_token = models.CharField(
+        max_length=255,
+        null=True, blank=True,
+        verbose_name="رمز FCM"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاريخ التحديث")
 
@@ -118,8 +125,13 @@ class User(AbstractUser):
 
 
 class TeacherProfile(models.Model):
-    """Teacher profile linked to schools"""
+    QUALIFICATION_CHOICES = [
+        ("bachelors", "بكالوريوس"),
+        ("diploma", "دبلوم"),
+        ("masters", "ماجستير"),
+        ("phd", "دكتوراة"),
 
+    ]
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -146,6 +158,7 @@ class TeacherProfile(models.Model):
     qualification = models.CharField(
         max_length=200,
         null=True, blank=True,
+        choices=QUALIFICATION_CHOICES,
         verbose_name="المؤهل العلمي"
     )
     experience_years = models.PositiveIntegerField(

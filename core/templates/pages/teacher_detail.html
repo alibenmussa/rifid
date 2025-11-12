@@ -1,0 +1,760 @@
+{% extends "base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block styles %}
+<style>
+    /* ==================== ROOT VARIABLES ==================== */
+    :root {
+        --primary: #435ebe;
+        --success: #198754;
+        --warning: #ffc107;
+        --danger: #dc3545;
+        --info: #0dcaf0;
+        --dark: #1e293b;
+        --gray: #475569;
+        --light-gray: #64748b;
+        --bg-gray: #f8fafc;
+        --border-gray: #e2e8f0;
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.12);
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ==================== BASE LAYOUT ==================== */
+    body {
+        background-color: var(--bg-gray);
+        font-family: 'IBM Plex Sans Arabic', sans-serif;
+        line-height: 1.8;
+    }
+
+    .teacher-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem;
+    }
+
+    /* ==================== PROFILE HEADER ==================== */
+    .profile-header {
+        background: white;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        transition: var(--transition);
+    }
+
+    .profile-header:hover {
+        box-shadow: var(--shadow-md);
+    }
+
+    .teacher-avatar-large {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        font-weight: 700;
+        border: 4px solid var(--bg-gray);
+        box-shadow: var(--shadow-md);
+    }
+
+    .teacher-name {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin: 0 0 0.5rem 0;
+    }
+
+    .badge-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.875rem;
+        background: var(--bg-gray);
+        border: 1px solid var(--border-gray);
+        border-radius: 50px;
+        font-size: 0.875rem;
+        color: var(--gray);
+        font-weight: 500;
+        transition: var(--transition);
+        line-height: 1.4;
+    }
+
+    .badge-chip:hover {
+        background: var(--border-gray);
+        transform: translateY(-1px);
+    }
+
+    .badge-chip i {
+        font-size: 0.875rem;
+        color: #8b5cf6;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .quick-stats {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        padding-top: 1.25rem;
+        margin-top: 1.25rem;
+        border-top: 1px solid var(--border-gray);
+    }
+
+    .stat-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.125rem;
+        background: var(--bg-gray);
+        border: 1px solid var(--border-gray);
+        border-radius: 50px;
+        transition: var(--transition);
+    }
+
+    .stat-badge:hover {
+        background: var(--border-gray);
+        transform: translateY(-1px);
+    }
+
+    .stat-badge i {
+        font-size: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .stat-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-value {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--dark);
+        line-height: 1.2;
+    }
+
+    .stat-label {
+        font-size: 0.8125rem;
+        color: var(--gray);
+        margin-top: 0.125rem;
+        line-height: 1;
+    }
+
+    /* ==================== GRID LAYOUT ==================== */
+    .content-grid {
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    .sidebar-left {
+        position: sticky;
+        top: 1.5rem;
+    }
+
+    /* ==================== INFO CARDS ==================== */
+    .info-card {
+        background: white;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        transition: var(--transition);
+    }
+
+    .info-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+
+    .card-header-custom {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-gray);
+        background: linear-gradient(to bottom, white, var(--bg-gray));
+    }
+
+    .card-header-custom h5 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-header-custom i {
+        font-size: 1.125rem;
+        color: #8b5cf6;
+    }
+
+    .card-body-custom {
+        padding: 1.5rem;
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid var(--bg-gray);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .info-item:first-child {
+        padding-top: 0;
+    }
+
+    .info-label {
+        font-size: 0.875rem;
+        color: var(--gray);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+        line-height: 1.4;
+    }
+
+    .info-label i {
+        width: 18px;
+        font-size: 0.875rem;
+        text-align: center;
+        color: var(--light-gray);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .info-value {
+        font-size: 0.9375rem;
+        color: var(--dark);
+        font-weight: 500;
+        text-align: left;
+    }
+
+    .info-value small {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--gray);
+        margin-top: 0.125rem;
+    }
+
+    /* Class card */
+    .class-card {
+        background: white;
+        border-radius: var(--radius-sm);
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-gray);
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .class-card:hover {
+        box-shadow: var(--shadow-sm);
+        transform: translateX(-3px);
+        border-color: #8b5cf6;
+    }
+
+    .class-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .class-name {
+        font-weight: 600;
+        color: var(--dark);
+        font-size: 1rem;
+    }
+
+    .class-badge {
+        background: rgba(139, 92, 246, 0.1);
+        color: #8b5cf6;
+        padding: 0.25rem 0.625rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .class-info {
+        font-size: 0.8125rem;
+        color: var(--gray);
+    }
+
+    /* ==================== TIMELINE SECTION ==================== */
+    .timeline-section {
+        background: white;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        padding: 2rem;
+    }
+
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .timeline-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--dark);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .timeline-title i {
+        color: #8b5cf6;
+    }
+
+    /* Timeline item */
+    .timeline-item {
+        padding: 1.25rem;
+        border: 1px solid var(--border-gray);
+        border-radius: var(--radius-sm);
+        margin-bottom: 1rem;
+        transition: var(--transition);
+    }
+
+    .timeline-item:hover {
+        box-shadow: var(--shadow-sm);
+        transform: translateY(-2px);
+    }
+
+    .timeline-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 0.75rem;
+    }
+
+    .timeline-student {
+        font-weight: 600;
+        color: var(--dark);
+        font-size: 0.9375rem;
+    }
+
+    .timeline-date {
+        font-size: 0.8125rem;
+        color: var(--gray);
+    }
+
+    .timeline-content {
+        color: var(--dark);
+        line-height: 1.6;
+        font-size: 0.9375rem;
+    }
+
+    .timeline-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.625rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-top: 0.5rem;
+    }
+
+    .timeline-type.achievement {
+        background: rgba(25, 135, 84, 0.1);
+        color: var(--success);
+    }
+
+    .timeline-type.behavior {
+        background: rgba(220, 53, 69, 0.1);
+        color: var(--danger);
+    }
+
+    .timeline-type.note {
+        background: rgba(13, 202, 240, 0.1);
+        color: var(--info);
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: var(--gray);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        color: var(--light-gray);
+        margin-bottom: 1rem;
+    }
+
+    /* ==================== RESPONSIVE DESIGN ==================== */
+    @media (max-width: 1199px) {
+        .content-grid {
+            grid-template-columns: 320px 1fr;
+            gap: 1.5rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .teacher-container {
+            padding: 1rem;
+        }
+
+        .content-grid {
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+
+        .sidebar-left {
+            position: static;
+        }
+
+        .profile-header {
+            padding: 1.5rem;
+        }
+
+        .teacher-avatar-large {
+            width: 80px;
+            height: 80px;
+            font-size: 2rem;
+        }
+
+        .teacher-name {
+            font-size: 1.5rem;
+        }
+
+        .quick-stats {
+            gap: 0.75rem;
+        }
+
+        .stat-badge {
+            padding: 0.5rem 0.875rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="teacher-container">
+    <!-- Profile Header -->
+    <div class="profile-header">
+        <div class="row align-items-center">
+            <div class="col-md-auto text-center text-md-start mb-3 mb-md-0">
+                <div class="teacher-avatar-large">
+                    {{ teacher.user.get_display_name|slice:":1"|upper }}
+                </div>
+            </div>
+            <div class="col-md">
+                <h2 class="teacher-name">{{ teacher.user.get_display_name }}</h2>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge-chip">
+                        <i class="bi bi-credit-card"></i>
+                        {{ teacher.employee_id }}
+                    </span>
+                    <span class="badge-chip">
+                        <i class="bi bi-building"></i>
+                        {{ teacher.school.name }}
+                    </span>
+                    {% if teacher.subject %}
+                    <span class="badge-chip">
+                        <i class="bi bi-book"></i>
+                        {{ teacher.subject }}
+                    </span>
+                    {% endif %}
+                    {% if stats.age %}
+                    <span class="badge-chip">
+                        <i class="bi bi-calendar"></i>
+                        {{ stats.age }} سنة
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-auto text-center text-md-end">
+                <div class="d-flex flex-column flex-md-row gap-2">
+                    {% if bar.buttons %}
+                        {% for button in bar.buttons %}
+                            {% if button %}
+                            <a href="{{ button.url }}" class="btn {{ button.color }} btn-sm">
+                                <i class="{{ button.icon }} me-1"></i>
+                                {{ button.label }}
+                            </a>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats Bar -->
+        <div class="quick-stats">
+            <div class="stat-badge">
+                <i class="bi bi-door-open text-primary"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ stats.classes_count }}</span>
+                    <span class="stat-label">فصل</span>
+                </div>
+            </div>
+            <div class="stat-badge">
+                <i class="bi bi-journal-text" style="color: #8b5cf6;"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ stats.timeline_posts }}</span>
+                    <span class="stat-label">منشور</span>
+                </div>
+            </div>
+            <div class="stat-badge">
+                <i class="bi bi-briefcase" style="color: var(--success);"></i>
+                <div class="stat-content">
+                    <span class="stat-value">
+                        {% if teacher.experience_years > 2 %}
+                        {{ teacher.experience_years }}
+                        {% elif teacher.experience_years > 1 %}
+                        سنتان
+                        {% else %}
+                        سنة
+                        {% endif %}
+                    </span>
+                    {% if teacher.experience_years > 10 %}
+                    <span class="stat-label">سنة خبرة</span>
+                    {% elif teacher.experience_years > 2 %}
+                    <span class="stat-label">سنوات خبرة</span>
+                    {% elif teacher.experience_years > 1 %}
+                    خبرة
+                    {% endif %}
+                </div>
+            </div>
+            {% if stats.experience_display %}
+            <div class="stat-badge">
+                <i class="bi bi-calendar-check" style="color: var(--info);"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ stats.experience_display }}</span>
+                    <span class="stat-label">في المدرسة</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+        <!-- Left Sidebar: Teacher Info -->
+        <aside class="sidebar-left">
+            <!-- Personal Information -->
+            <div class="info-card">
+                <div class="card-header-custom">
+                    <h5>
+                        <i class="bi bi-person-circle"></i>
+                        المعلومات الشخصية
+                    </h5>
+                </div>
+                <div class="card-body-custom">
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-person"></i>
+                            الاسم الكامل
+                        </div>
+                        <div class="info-value">{{ teacher.user.get_display_name|default:"-" }}</div>
+                    </div>
+                    {% if teacher.user.date_of_birth %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-calendar-event"></i>
+                            تاريخ الميلاد
+                        </div>
+                        <div class="info-value">
+                            {{ teacher.user.date_of_birth|date:"j F Y" }}
+                            <small>{{ stats.age }} سنة</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-telephone"></i>
+                            الهاتف
+                        </div>
+                        <div class="info-value">{{ teacher.user.phone|default:"-" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-envelope"></i>
+                            البريد الإلكتروني
+                        </div>
+                        <div class="info-value">{{ teacher.user.email|default:"-" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Professional Information -->
+            <div class="info-card">
+                <div class="card-header-custom">
+                    <h5>
+                        <i class="bi bi-mortarboard"></i>
+                        المعلومات الأكاديمية
+                    </h5>
+                </div>
+                <div class="card-body-custom">
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-credit-card"></i>
+                            الرقم الوظيفي
+                        </div>
+                        <div class="info-value">{{ teacher.employee_id }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-book"></i>
+                            المادة
+                        </div>
+                        <div class="info-value">{{ teacher.subject|default:"-" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-award"></i>
+                            المؤهل العلمي
+                        </div>
+                        <div class="info-value">{{ teacher.qualification|default:"-" }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-briefcase"></i>
+                            سنوات الخبرة
+                        </div>
+                        <div class="info-value">{{ teacher.experience_years }} سنة</div>
+                    </div>
+                    {% if teacher.hire_date %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-calendar-check"></i>
+                            تاريخ التوظيف
+                        </div>
+                        <div class="info-value">
+                            {{ teacher.hire_date|date:"j F Y" }}
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-person-badge"></i>
+                            معلم فصل
+                        </div>
+                        <div class="info-value">
+                            {% if teacher.is_class_teacher %}
+                                <span class="badge bg-primary">نعم</span>
+                            {% else %}
+                                <span class="badge bg-secondary">لا</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="bi bi-activity"></i>
+                            الحالة
+                        </div>
+                        <div class="info-value">
+                            {% if teacher.is_active %}
+                                <span class="badge bg-success">نشط</span>
+                            {% else %}
+                                <span class="badge bg-secondary">غير نشط</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Classes Information -->
+            {% if classes_as_teacher %}
+            <div class="info-card">
+                <div class="card-header-custom">
+                    <h5>
+                        <i class="bi bi-door-open"></i>
+                        الفصول المسؤول عنها
+                    </h5>
+                </div>
+                <div class="card-body-custom">
+                    {% for class in classes_as_teacher %}
+                    <div class="class-card">
+                        <div class="class-card-header">
+                            <span class="class-name">{{ class.full_name }}</span>
+                            <span class="class-badge">{{ class.grade.get_grade_type_display }}</span>
+                        </div>
+                        <div class="class-info">
+                            <i class="bi bi-calendar3"></i>
+                            {{ class.academic_year.name }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </aside>
+
+        <!-- Main Feed: Timeline -->
+        <main class="timeline-section">
+            <div class="timeline-header">
+                <div class="timeline-title">
+                    <i class="bi bi-clock-history"></i>
+                    آخر المنشورات
+                </div>
+            </div>
+
+            {% if timeline %}
+                {% for item in timeline %}
+                <div class="timeline-item">
+                    <div class="timeline-meta">
+                        <div>
+                            <div class="timeline-student">
+                                <i class="bi bi-person-circle me-1"></i>
+                                {{ item.student.full_name }}
+                            </div>
+                            {% if item.title %}
+                            <div class="timeline-content mt-2">
+                                <strong>{{ item.title }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if item.note %}
+                            <div class="timeline-content mt-1">
+                                {{ item.note|truncatewords:20 }}
+                            </div>
+                            {% endif %}
+                            <span class="timeline-type {{ item.content_type }}">
+                                <i class="bi bi-tag"></i>
+                                {{ item.get_content_type_display }}
+                            </span>
+                        </div>
+                        <div class="timeline-date">
+                            <i class="bi bi-clock me-1"></i>
+                            {{ item.created_at|date:"j F Y" }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="bi bi-journal-text"></i>
+                    <h5>لا توجد منشورات بعد</h5>
+                    <p>لم يقم المعلم بإنشاء أي منشورات حتى الآن</p>
+                </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}

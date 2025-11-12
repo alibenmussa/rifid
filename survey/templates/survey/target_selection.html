@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block styles %}
+<style>
+    .target-card {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid transparent;
+        height: 100%;
+    }
+    .target-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+    .target-card.border-primary:hover {
+        border-color: var(--bs-primary) !important;
+        box-shadow: 0 8px 16px rgba(13, 110, 253, 0.2);
+    }
+    .target-card.border-success:hover {
+        border-color: var(--bs-success) !important;
+        box-shadow: 0 8px 16px rgba(25, 135, 84, 0.2);
+    }
+    .target-card.border-info:hover {
+        border-color: var(--bs-info) !important;
+        box-shadow: 0 8px 16px rgba(13, 202, 240, 0.2);
+    }
+    .target-card.border-warning:hover {
+        border-color: var(--bs-warning) !important;
+        box-shadow: 0 8px 16px rgba(255, 193, 7, 0.2);
+    }
+    .target-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+
+                <div class="row g-4">
+                    {% for target in targets %}
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <a href="{{ target.url }}" class="text-decoration-none">
+                            <div class="card target-card border-{{ target.color }} h-100">
+                                <div class="card-body text-center d-flex flex-column justify-content-center">
+                                    <div class="target-icon text-{{ target.color }}">
+                                        <i class="{{ target.icon }}"></i>
+                                    </div>
+                                    <h5 class="card-title text-dark mb-3">{{ target.name }}</h5>
+                                    <p class="card-text text-muted">{{ target.description }}</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

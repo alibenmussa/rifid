@@ -12,6 +12,11 @@ class School(models.Model):
     """
     name = models.CharField(max_length=100, verbose_name="اسم المدرسة")
     code = models.CharField(max_length=20, unique=True, verbose_name="رمز المدرسة")
+    logo = models.ImageField(
+        upload_to='schools/logos/%Y/%m/',
+        null=True, blank=True,
+        verbose_name="شعار المدرسة"
+    )
     address = models.TextField(null=True, blank=True, verbose_name="العنوان")
     phone = models.CharField(max_length=15, null=True, blank=True, verbose_name="الهاتف")
     email = models.EmailField(null=True, blank=True, verbose_name="البريد الإلكتروني")
@@ -76,9 +81,9 @@ class AcademicYear(models.Model):
 class Grade(models.Model):
     """School grades/levels"""
     GRADE_TYPES = [
-        ('kindergarten', 'روضة'),
-        ('primary', 'ابتدائي'),
-        ('middle', 'إعدادي'),
+        ('kindergarten', 'رياض أطفال'),
+        ('primary', 'أساسي'),
+        # ('middle', 'إعدادي'),
         ('secondary', 'ثانوي'),
     ]
 
@@ -110,7 +115,7 @@ class SchoolClass(models.Model):
                                       verbose_name="السنة الدراسية")
 
     name = models.CharField(max_length=50, verbose_name="اسم الفصل")  # e.g., "أ", "ب", "ج"
-    section = models.CharField(max_length=10, null=True, blank=True, verbose_name="الشعبة")
+    section = models.CharField(max_length=10, null=True, blank=True, verbose_name="المبنى")
     capacity = models.PositiveIntegerField(default=30, verbose_name="السعة القصوى")
 
     # Class teacher
@@ -212,7 +217,7 @@ class Student(models.Model):
     )
 
     # Student ID within school
-    student_id = models.CharField(max_length=20, verbose_name="الرقم الجامعي")
+    student_id = models.CharField(max_length=20, verbose_name="رقم القيد")
 
     first_name = models.CharField(max_length=50, verbose_name="الاسم الأول")
     second_name = models.CharField(max_length=50, null=True, blank=True, verbose_name="اسم الأب")

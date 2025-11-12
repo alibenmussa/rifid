@@ -1,7 +1,8 @@
 import django_tables2 as tables
 from django.contrib.auth import get_user_model
 
-from core.models import GuardianStudent, Guardian, Grade, SchoolClass
+from core.models import GuardianStudent, Guardian, Grade, SchoolClass, School
+from accounts.models import TeacherProfile
 from rifid.utilities import TABLE_STYLE, Button
 
 
@@ -127,7 +128,7 @@ class SchoolClassTable(tables.Table):
     occupancy_rate = tables.TemplateColumn(
         '{{ record.students_count|floatformat:0 }}/{{ record.capacity }} '
         '({% widthratio record.students_count record.capacity 100 %}%)',
-        verbose_name="نسبة الإشغال",
+        verbose_name="امتلاء الفصل",
         orderable=False
     )
     is_active = tables.TemplateColumn(
@@ -144,5 +145,61 @@ class SchoolClassTable(tables.Table):
     class Meta:
         model = SchoolClass
         fields = ("full_name", "grade", "academic_year", "class_teacher", "capacity", "students_count", "is_active")
+        template_name = TABLE_STYLE.get("template")
+        attrs = {"class": TABLE_STYLE.get("class")}
+
+
+class TeacherTable(tables.Table):
+    """Table for displaying teachers"""
+    name = tables.Column(verbose_name="الاسم", accessor="user.get_display_name", orderable=False)
+    employee_id = tables.Column(verbose_name="الرقم الوظيفي")
+    subject = tables.Column(verbose_name="المادة")
+    experience_years = tables.Column(verbose_name="سنوات الخبرة")
+    is_class_teacher = tables.TemplateColumn(
+        '{% if value %}<span class="badge bg-primary">نعم</span>'
+        '{% else %}<span class="badge bg-secondary">لا</span>{% endif %}',
+        verbose_name="معلم فصل"
+    )
+    is_active = tables.TemplateColumn(
+        '{% if value %}<span class="badge bg-success">نشط</span>'
+        '{% else %}<span class="badge bg-secondary">غير نشط</span>{% endif %}',
+        verbose_name="الحالة"
+    )
+    actions = tables.TemplateColumn(
+        Button(url="dashboard:teacher_detail", params="record.id", icon="bi bi-eye", style="mx-2").render() +
+        Button(url="dashboard:teacher_edit", params="record.id", icon="bi bi-pencil", style="mx-2").render(),
+        verbose_name="الإجراءات"
+    )
+
+    class Meta:
+        model = TeacherProfile
+        fields = ("name", "employee_id", "subject", "experience_years", "is_class_teacher", "is_active")
+        template_name = TABLE_STYLE.get("template")
+        attrs = {"class": TABLE_STYLE.get("class")}
+
+
+class SchoolTable(tables.Table):
+    """Table for displaying schools"""
+    name = tables.Column(verbose_name="اسم المدرسة")
+    code = tables.Column(verbose_name="رمز المدرسة")
+    principal_name = tables.Column(verbose_name="اسم المدير", default="—")
+    phone = tables.Column(verbose_name="الهاتف", default="—")
+    email = tables.Column(verbose_name="البريد الإلكتروني", default="—")
+    students_count = tables.Column(verbose_name="عدد الطلاب", orderable=False)
+    teachers_count = tables.Column(verbose_name="عدد المعلمين", orderable=False)
+    is_active = tables.TemplateColumn(
+        '{% if value %}<span class="badge bg-success">نشط</span>'
+        '{% else %}<span class="badge bg-secondary">غير نشط</span>{% endif %}',
+        verbose_name="الحالة"
+    )
+    actions = tables.TemplateColumn(
+        Button(url="dashboard:school_detail", params="record.id", icon="bi bi-eye", style="mx-2").render() +
+        Button(url="dashboard:school_edit", params="record.id", icon="bi bi-pencil", style="mx-2").render(),
+        verbose_name="الإجراءات"
+    )
+
+    class Meta:
+        model = School
+        fields = ("name", "code", "principal_name", "phone", "students_count", "teachers_count", "is_active")
         template_name = TABLE_STYLE.get("template")
         attrs = {"class": TABLE_STYLE.get("class")}

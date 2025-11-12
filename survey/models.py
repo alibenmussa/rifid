@@ -16,29 +16,67 @@ class Template(models.Model):
         (FOOD, 'طعام'),
     )
 
+    # Target audience choices
+    TARGET_GUARDIANS = 'guardians'
+    TARGET_TEACHERS = 'teachers'
+    TARGET_EMPLOYEES = 'employees'
+    TARGET_ALL = 'all'
+
+    TARGET_CHOICES = (
+        (TARGET_GUARDIANS, 'أولياء الأمور'),
+        (TARGET_TEACHERS, 'المعلمون'),
+        (TARGET_EMPLOYEES, 'الموظفون'),
+        (TARGET_ALL, 'الجميع'),
+    )
+
+    # Send frequency choices
+    FREQ_ONCE = "once"
     FREQ_WEEKLY = "weekly"
     FREQ_MONTHLY = "monthly"
     FREQ_QUARTERLY = "quarterly"  # every 3 months
     FREQ_YEARLY = "yearly"
-    FREQ_EVERY_N_DAYS = "every_n_days"
 
     FREQ_CHOICES = (
+        (FREQ_ONCE, "مرة واحدة (يدوي)"),
         (FREQ_WEEKLY, "أسبوعي"),
         (FREQ_MONTHLY, "شهري"),
         (FREQ_QUARTERLY, "كل 3 أشهر"),
         (FREQ_YEARLY, "سنوي"),
-        # (FREQ_EVERY_N_DAYS, "كل عدد أيام محدد"),
     )
-
-    default_frequency = models.CharField(
-        max_length=20, choices=FREQ_CHOICES, default=FREQ_MONTHLY, null=True, blank=True, verbose_name="التكرار الافتراضي"
-    )
-
 
     name = models.CharField(max_length=255, verbose_name='الاسم', null=True, blank=True)
     type = models.CharField(choices=TYPE_CHOICES, default=FOOD, max_length=16, verbose_name='النوع')
     parent = models.OneToOneField('survey.TemplateField', on_delete=models.CASCADE, null=True, blank=True, related_name='sub_form', verbose_name='حقل النموذج')
     school = models.ForeignKey('core.School', on_delete=models.CASCADE, null=True, blank=True, related_name='templates', verbose_name='المدرسة', help_text='إذا كان فارغاً، فهو متاح لجميع المدارس')
+
+    # New fields for generic survey system
+    target_audience = models.CharField(
+        max_length=20,
+        choices=TARGET_CHOICES,
+        default=TARGET_GUARDIANS,
+        verbose_name='المتلقي',
+        help_text='لمن هذا الاستطلاع؟'
+    )
+    grades = models.ManyToManyField(
+        'core.Grade',
+        blank=True,
+        related_name='templates',
+        verbose_name='الصفوف',
+        help_text='اختر الصفوف المستهدفة (فقط لاستطلاعات أولياء الأمور). اتركه فارغاً لجميع الصفوف.'
+    )
+    send_frequency = models.CharField(
+        max_length=20,
+        choices=FREQ_CHOICES,
+        default=FREQ_MONTHLY,
+        verbose_name="تكرار الإرسال",
+        help_text='كم مرة سيتم إرسال هذا الاستطلاع؟'
+    )
+    is_builtin = models.BooleanField(
+        default=False,
+        verbose_name='نموذج مدمج',
+        help_text='النماذج المدمجة من المسؤول متاحة لجميع المدارس. النماذج المخصصة خاصة بمدرسة واحدة فقط.'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التعديل')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
@@ -54,8 +92,11 @@ class Template(models.Model):
         verbose_name = 'نموذج التذكرة'
         ordering = [ 'name']
 
-    # def save(self, *args, **kwargs):
-    #     super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        # Auto-set is_builtin based on school field
+        # If school is None, it's a built-in template available to all schools
+        self.is_builtin = self.school is None
+        super().save(*args, **kwargs)
 
     def as_json(self, is_public=None):
         query = self.fields.all() if is_public is None else self.fields.filter(is_public=is_public)
@@ -322,10 +363,112 @@ class TemplateField(models.Model):
             attrs={"data-order": self.order, "data-is-public": self.is_public}))
 
 
+class SurveyPeriod(models.Model):
+    """
+    Represents a time period when a survey is active
+    For recurring surveys, a new period is created each cycle (weekly, monthly, etc.)
+    For manual surveys, one period is created when sent
+    """
+    survey = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='periods', verbose_name='الاستطلاع')
+    start_date = models.DateField(verbose_name='تاريخ البداية')
+    end_date = models.DateField(verbose_name='تاريخ الانتهاء (الموعد النهائي)')
+    is_active = models.BooleanField(default=True, verbose_name='نشط؟', help_text='فترة واحدة فقط يمكن أن تكون نشطة لكل استطلاع')
+    school = models.ForeignKey('core.School', on_delete=models.CASCADE, null=True, blank=True, related_name='survey_periods', verbose_name='المدرسة')
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_survey_periods', verbose_name='أرسل بواسطة')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التعديل')
+
+    class Meta:
+        verbose_name = 'فترة استطلاع'
+        verbose_name_plural = 'فترات الاستطلاعات'
+        ordering = ['-start_date']
+        indexes = [
+            models.Index(fields=['survey', 'is_active']),
+            models.Index(fields=['school', 'is_active']),
+            models.Index(fields=['-start_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.survey.name} - {self.start_date} إلى {self.end_date}"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one active period per survey
+        if self.is_active:
+            SurveyPeriod.objects.filter(survey=self.survey, is_active=True).exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        """Check if this period has expired"""
+        from django.utils import timezone
+        return timezone.now().date() > self.end_date
+
+    @property
+    def completion_rate(self):
+        """Calculate completion rate for this period"""
+        total = self.distributions.count()
+        if total == 0:
+            return 0
+        completed = self.distributions.filter(is_completed=True).count()
+        return round((completed / total) * 100, 2)
+
+
+class SurveyDistribution(models.Model):
+    """
+    Individual survey assignment to a specific user (and student for guardian surveys)
+    Tracks whether the survey was sent, completed, and links to the response
+    """
+    period = models.ForeignKey(SurveyPeriod, on_delete=models.CASCADE, related_name='distributions', verbose_name='الفترة')
+    survey = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='distributions', verbose_name='الاستطلاع')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='survey_distributions', verbose_name='المستخدم')
+    student = models.ForeignKey('core.Student', on_delete=models.CASCADE, null=True, blank=True, related_name='survey_distributions', verbose_name='الطالب', help_text='الطالب المعني (فقط لاستطلاعات أولياء الأمور)')
+    response = models.OneToOneField('Response', on_delete=models.SET_NULL, null=True, blank=True, related_name='distribution', verbose_name='الرد')
+
+    is_completed = models.BooleanField(default=False, verbose_name='تم الإكمال؟')
+    sent_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإرسال')
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name='تاريخ الإكمال')
+
+    school = models.ForeignKey('core.School', on_delete=models.CASCADE, related_name='survey_distributions', verbose_name='المدرسة')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التعديل')
+
+    class Meta:
+        verbose_name = 'توزيع استطلاع'
+        verbose_name_plural = 'توزيعات الاستطلاعات'
+        ordering = ['-sent_at']
+        unique_together = [['period', 'user', 'student']]  # Prevent duplicate distributions
+        indexes = [
+            models.Index(fields=['user', 'is_completed']),
+            models.Index(fields=['period', 'user']),
+            models.Index(fields=['school', 'user']),
+            models.Index(fields=['school', 'is_completed']),
+        ]
+
+    def __str__(self):
+        if self.student:
+            return f"{self.survey.name} - {self.user.get_full_name()} (الطالب: {self.student.first_name})"
+        return f"{self.survey.name} - {self.user.get_full_name()}"
+
+    @property
+    def is_expired(self):
+        """Check if the distribution period has expired"""
+        return self.period.is_expired
+
+    @property
+    def can_respond(self):
+        """Check if user can still respond to this survey"""
+        return not self.is_completed and not self.is_expired
+
+
 class Response(models.Model):
     template = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='responses', verbose_name='النموذج')
-    guardian = models.ForeignKey('core.Guardian', on_delete=models.CASCADE, related_name='responses', verbose_name='الولي')
-    student = models.ForeignKey('core.Student', on_delete=models.CASCADE, related_name='responses', verbose_name='الطالب')
+    # Temporarily nullable to allow migration from guardian to user
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='survey_responses', verbose_name='المستخدم', null=True, blank=True)
+    # Keep guardian temporarily for migration
+    guardian = models.ForeignKey('core.Guardian', on_delete=models.CASCADE, related_name='old_responses', verbose_name='الولي (قديم)', null=True, blank=True)
+    student = models.ForeignKey('core.Student', on_delete=models.CASCADE, related_name='responses', verbose_name='الطالب', null=True, blank=True, help_text='الطالب المعني (فقط لاستطلاعات أولياء الأمور)')
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاريخ الإنشاء')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='تاريخ التعديل')
@@ -336,7 +479,8 @@ class Response(models.Model):
         ordering = ['-created_at']
 
         indexes = [
-            models.Index(fields=["template", "guardian", "-created_at"]),
+            models.Index(fields=["template", "user", "-created_at"]),
+            models.Index(fields=["template", "student", "-created_at"]),
         ]
 
 

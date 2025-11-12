@@ -11,9 +11,13 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
 from pathlib import Path
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+env = environ.Env()
+environ.Env.read_env(str(BASE_DIR / ".env"))
+ENV = env.str("ENV", default="DEVELOPMENT")
 
 
 # Quick-start development settings - unsuitable for production
@@ -25,8 +29,8 @@ SECRET_KEY = "django-insecure-dk44wxm6gu4+9g6mae8d2!vp0tqpdpa)+9w!r@h2uhud(xr_0p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-if os.environ.get('ENV') == 'PRODUCTION':
-    ALLOWED_HOSTS = ['rifid.onrender.com']
+if ENV == 'PRODUCTION':
+    ALLOWED_HOSTS = ['*']
 else:
     ALLOWED_HOSTS = ["*"]
 
@@ -121,17 +125,15 @@ WSGI_APPLICATION = "rifid.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-if os.environ.get('ENV') == 'PRODUCTION':
+if ENV == 'PRODUCTION':
     DATABASES = {
         "default": {
-            # postgresql://test:oJvFAzUi7pfUVahdu20rr2uf33XV1CmM@dpg-d37fh47fte5s73b8ko9g-a/rifid_test
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "rifid_test",
-            "USER": "test",
-            "PASSWORD": "oJvFAzUi7pfUVahdu20rr2uf33XV1CmM",
-            "HOST": "dpg-d37fh47fte5s73b8ko9g-a",
-            "PORT": "5432",
-
+            'NAME': 'test',
+            'HOST': 'localhost',
+            'PORT': '5432',
+            'USER': 'test',
+            'PASSWORD': 'test'
         }
     }
 else:
@@ -187,7 +189,7 @@ FORMAT_MODULE_PATH =  "core.formats"
 
 STATIC_URL = "static/"
 # if env is production
-if os.environ.get('ENV') == 'PRODUCTION':
+if ENV == 'PRODUCTION':
     STATIC_ROOT = BASE_DIR / "static"
 else:
     STATICFILES_DIRS = [BASE_DIR / "static"]

@@ -219,9 +219,9 @@ class Command(BaseCommand):
             ('السنة الخامسة ابتدائي', 5, 'primary'),
             ('السنة السادسة ابتدائي', 6, 'primary'),
             # Middle (3 grades)
-            ('السنة السابعة أساسي', 7, 'middle'),
-            ('السنة الثامنة أساسي', 8, 'middle'),
-            ('السنة التاسعة أساسي', 9, 'middle'),
+            ('السنة السابعة إعدادي', 7, 'middle'),
+            ('السنة الثامنة إعدادي', 8, 'middle'),
+            ('السنة التاسعة إعدادي', 9, 'middle'),
             # Secondary (3 grades)
             ('السنة الأولى ثانوي', 10, 'secondary'),
             ('السنة الثانية ثانوي', 11, 'secondary'),
@@ -254,7 +254,7 @@ class Command(BaseCommand):
                     school=school,
                     grade=grade,
                     academic_year=academic_year,
-                    name=class_names[i],
+                    name=f"{grade.level} - {class_names[i]}",
                     capacity=random.randint(25, 35),
                     is_active=True
                 )
@@ -294,7 +294,7 @@ class Command(BaseCommand):
             username = f'teacher_{school.code.lower()}_{i + 1}'
             user = User.objects.create(
                 username=username,
-                email=f'{username}@{school.code.lower()}.edu.sa',
+                email=f'{username}@{school.code.lower()}.ly',
                 first_name=first_name,
                 last_name=last_name,
                 user_type=User.TEACHER,
@@ -345,7 +345,7 @@ class Command(BaseCommand):
             username = f'employee_{school.code.lower()}_{position}'
             user = User.objects.create(
                 username=username,
-                email=f'{username}@{school.code.lower()}.edu.sa',
+                email=f'{username}@{school.code.lower()}.ly',
                 first_name=first_name,
                 last_name=last_name,
                 user_type=User.EMPLOYEE,

@@ -14,11 +14,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from survey.models import Template, Response as SurveyResponse
+from survey.models import Template, Response as SurveyResponse, SurveyDistribution
 from core.models import (
     School, AcademicYear, Grade, SchoolClass,
     Guardian, Student, GuardianStudent,
-    StudentTimeline
+    StudentTimeline, StudentTimelineAttachment
 )
 from .filters import StudentTimelineFilter, StudentFilter
 from .permissions import IsGuardianUser, HasSelectedStudent, IsSchoolMember, IsEmployeeUser
@@ -39,6 +39,8 @@ from .serializers import (
     # Survey serializers
     TemplateListItemSerializer, TemplateDetailSerializer,
     ResponseListSerializer, ResponseDetailSerializer, ResponseCreateSerializer,
+    SurveyDistributionListSerializer, SurveyDistributionDetailSerializer,
+    DistributionResponseCreateSerializer,
 
     # Auth serializers
     AuthLoginInputSerializer, AuthLoginOutputSerializer,
@@ -50,6 +52,7 @@ from .serializers import (
     ProfileSerializer, EmployeeProfileSerializer, StudentListSerializerForEmployee,
 )
 from .utils import is_available_now, get_or_select_student_fast
+from .pagination import StandardResultsSetPagination
 
 
 # ==========================================
@@ -145,6 +148,7 @@ class TemplateViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
     """Survey templates available to guardians"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsGuardianUser, HasSelectedStudent]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         # Check if this is being called during schema generation
@@ -194,7 +198,7 @@ class TemplateViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
         # Filter available templates
         available = [
             t for t in qs
-            if is_available_now(last_map.get(t.id), t.default_frequency)
+            if is_available_now(last_map.get(t.id), t.send_frequency)
         ]
 
         page = self.paginate_queryset(available)
@@ -223,6 +227,7 @@ class ResponseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
     """Survey responses for guardians"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsGuardianUser, HasSelectedStudent]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['template', 'created_at']
     ordering_fields = ['created_at']
@@ -298,6 +303,135 @@ class ResponseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         return Response(output_data, status=status.HTTP_201_CREATED)
 
 
+class SurveyDistributionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """
+    Survey distributions for authenticated users
+    Supports filtering by completion status
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['is_completed', 'survey']
+    ordering_fields = ['sent_at', 'deadline', 'completed_at']
+    ordering = ['-sent_at']
+
+    def get_queryset(self):
+        # Handle schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return SurveyDistribution.objects.none()
+
+        if not self.request.user.is_authenticated:
+            return SurveyDistribution.objects.none()
+
+        # Get distributions for current user
+        return (SurveyDistribution.objects
+                .filter(user=self.request.user)
+                .select_related('survey', 'period', 'student', 'response')
+                .order_by('-sent_at'))
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return SurveyDistributionDetailSerializer
+        return SurveyDistributionListSerializer
+
+    @swagger_auto_schema(
+        operation_summary="قائمة الاستطلاعات المرسلة",
+        operation_description="الحصول على جميع الاستطلاعات المرسلة للمستخدم. يمكن التصفية حسب حالة الإكمال.",
+        manual_parameters=[
+            openapi.Parameter('is_completed', openapi.IN_QUERY, description="تصفية حسب الإكمال (true/false)", type=openapi.TYPE_BOOLEAN),
+            openapi.Parameter('survey', openapi.IN_QUERY, description="تصفية حسب رقم الاستطلاع", type=openapi.TYPE_INTEGER),
+        ],
+        responses={200: SurveyDistributionListSerializer(many=True)}
+    )
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page or queryset, many=True)
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_summary="تفاصيل توزيع الاستطلاع",
+        operation_description="الحصول على تفاصيل كاملة لتوزيع استطلاع معين بما في ذلك الحقول والرد إن وجد",
+        responses={
+            200: SurveyDistributionDetailSerializer,
+            404: "التوزيع غير موجود"
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        distribution = self.get_object()
+        serializer = self.get_serializer(distribution)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        method='get',
+        operation_summary="الاستطلاعات المعلقة",
+        operation_description="الحصول على الاستطلاعات التي لم يتم الإجابة عليها بعد ولم تنته صلاحيتها",
+        responses={200: SurveyDistributionListSerializer(many=True)}
+    )
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """Get pending (not completed, not expired) distributions"""
+        queryset = self.get_queryset().filter(
+            is_completed=False
+        ).exclude(
+            period__end_date__lt=timezone.now().date()
+        )
+
+        page = self.paginate_queryset(queryset)
+        serializer = SurveyDistributionListSerializer(page or queryset, many=True)
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        method='get',
+        operation_summary="الاستطلاعات المكتملة",
+        operation_description="الحصول على الاستطلاعات التي تم الإجابة عليها",
+        responses={200: SurveyDistributionListSerializer(many=True)}
+    )
+    @action(detail=False, methods=['get'])
+    def completed(self, request):
+        """Get completed distributions"""
+        queryset = self.get_queryset().filter(is_completed=True)
+
+        page = self.paginate_queryset(queryset)
+        serializer = SurveyDistributionListSerializer(page or queryset, many=True)
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        method='post',
+        operation_summary="الإجابة على الاستطلاع",
+        operation_description="إرسال إجابة لتوزيع استطلاع محدد",
+        request_body=DistributionResponseCreateSerializer,
+        responses={
+            201: ResponseDetailSerializer,
+            400: "خطأ في البيانات",
+            403: "الاستطلاع غير متاح (مكتمل أو منتهي الصلاحية)"
+        }
+    )
+    @action(detail=False, methods=['post'])
+    def respond(self, request):
+        """Submit response for a distribution"""
+        serializer = DistributionResponseCreateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        response = serializer.save()
+        output_data = ResponseDetailSerializer(response).data
+
+        return Response(output_data, status=status.HTTP_201_CREATED)
+
+
 # ==========================================
 # ENHANCED STUDENT MANAGEMENT
 # ==========================================
@@ -306,6 +440,7 @@ class StudentsListView(APIView):
     """List guardian's children with selection status"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsGuardianUser]
+    pagination_class = StandardResultsSetPagination
 
     @swagger_auto_schema(
         operation_summary="قائمة أطفال ولي الأمر",
@@ -317,11 +452,19 @@ class StudentsListView(APIView):
             'current_class', 'current_class__grade'
         ).order_by("last_name", "first_name")
 
+        # Apply pagination
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(students, request)
+
         serializer = StudentOptionSerializer(
-            students,
+            page if page is not None else students,
             many=True,
             context={"selected_id": guardian.selected_student_id}
         )
+
+        if page is not None:
+            return paginator.get_paginated_response(serializer.data)
+
         return Response(serializer.data, status=200)
 
 
@@ -391,6 +534,7 @@ class MyTimelineViewSet(viewsets.ReadOnlyModelViewSet):
     """Student timeline view for guardians (read-only)"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsGuardianUser]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StudentTimelineFilter
     ordering_fields = ["created_at", "is_pinned", "id"]
@@ -398,8 +542,7 @@ class MyTimelineViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_class(self):
         """Return appropriate serializer for each action"""
-        if self.action == 'list':
-            return StudentTimelineListSerializer
+        # Use detailed serializer for both list and retrieve to include all data and attachments
         return StudentTimelineDetailSerializer
 
     def _current_student(self):
@@ -450,28 +593,28 @@ class MyTimelineViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(
         operation_summary="قائمة منشورات الطالب (ولي الأمر - قراءة فقط)",
-        responses={200: StudentTimelineListSerializer(many=True)}
+        responses={200: StudentTimelineDetailSerializer(many=True)}
     )
     def list(self, request, *args, **kwargs):
-        """Get timeline entries with content_type choices"""
+        """Get timeline entries with content_type choices and pagination"""
         response = super().list(request, *args, **kwargs)
 
-        # Add content_type choices to response
-        response.data = {
-            'results': response.data if not isinstance(response.data, dict) else response.data.get('results', []),
-            'content_type_choices': [
+        # Add content_type choices to paginated response
+        if isinstance(response.data, dict):
+            # Response is paginated - add content_type_choices to existing pagination data
+            response.data['content_type_choices'] = [
                 {'value': choice[0], 'label': choice[1]}
                 for choice in StudentTimeline.CONTENT_TYPES
             ]
-        }
-
-        # Add pagination info if paginated
-        if isinstance(self.paginator, type(None)) is False:
-            paginated = self.paginate_queryset(self.get_queryset())
-            if paginated is not None:
-                response.data['count'] = self.paginator.page.paginator.count
-                response.data['next'] = self.paginator.get_next_link()
-                response.data['previous'] = self.paginator.get_previous_link()
+        else:
+            # Fallback for non-paginated response (shouldn't happen with pagination enabled)
+            response.data = {
+                'results': response.data if isinstance(response.data, list) else [],
+                'content_type_choices': [
+                    {'value': choice[0], 'label': choice[1]}
+                    for choice in StudentTimeline.CONTENT_TYPES
+                ]
+            }
 
         return response
 
@@ -877,6 +1020,7 @@ class EmployeeStudentsViewSet(viewsets.ReadOnlyModelViewSet):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsEmployeeUser]
     serializer_class = StudentListSerializerForEmployee
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_class = StudentFilter
     ordering_fields = ['student_id', 'full_name', 'date_of_birth', 'created_at']
@@ -927,6 +1071,7 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
     """Timeline management for Employee users"""
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsEmployeeUser]
+    pagination_class = StandardResultsSetPagination
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = StudentTimelineFilter
@@ -935,14 +1080,11 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         """Return appropriate serializer for each action"""
-        if self.action == 'list':
-            return StudentTimelineListSerializer
-        elif self.action == 'retrieve':
-            return StudentTimelineDetailSerializer
-        elif self.action == 'create':
+        if self.action == 'create':
             return StudentTimelineCreateSerializer
         elif self.action in ['update', 'partial_update']:
             return StudentTimelineUpdateSerializer
+        # Use detailed serializer for both list and retrieve to include all data and attachments
         return StudentTimelineDetailSerializer
 
     def get_queryset(self):
@@ -959,8 +1101,8 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
 
         school = employee.school
 
-        # Get student_id from query params for filtering
-        student_id = self.request.query_params.get('student_id')
+        # Get student_id from URL path parameter
+        student_id = self.kwargs.get('student_id')
 
         queryset = StudentTimeline.objects.filter(student__school=school)
 
@@ -975,12 +1117,12 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
-        """Override create to set student from request data"""
-        # Get student_id from request data
-        student_id = request.data.get('student_id')
+        """Override create to set student from URL path"""
+        # Get student_id from URL path parameter
+        student_id = self.kwargs.get('student_id')
         if not student_id:
             return Response(
-                {'detail': 'يجب تحديد student_id للطالب.'},
+                {'detail': 'يجب تحديد student_id في رابط الطلب.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1010,7 +1152,7 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
 
     @swagger_auto_schema(
         operation_summary="قائمة المنشورات (موظف)",
-        responses={200: StudentTimelineListSerializer(many=True)}
+        responses={200: StudentTimelineDetailSerializer(many=True)}
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -1031,7 +1173,17 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
         }
     )
     def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = StudentTimelineUpdateSerializer(
+            instance, data=request.data, partial=partial, context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        timeline = serializer.save()
+
+        # Return with detail serializer
+        output_serializer = StudentTimelineDetailSerializer(timeline, context={'request': request})
+        return Response(output_serializer.data, status=status.HTTP_200_OK)
 
     @swagger_auto_schema(
         operation_summary="تعديل جزئي لمنشور (موظف)",
@@ -1042,7 +1194,8 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
         }
     )
     def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary="حذف منشور (موظف)",
@@ -1053,9 +1206,13 @@ class EmployeeTimelineViewSet(viewsets.ModelViewSet):
 
     @swagger_auto_schema(
         operation_summary="إضافة مرفق لمنشور",
-        manual_parameters=[
-            openapi.Parameter('file', openapi.IN_FORM, type=openapi.TYPE_FILE, required=True, description='الملف المراد رفعه')
-        ],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'file': openapi.Schema(type=openapi.TYPE_FILE, description='الملف المراد رفعه')
+            },
+            required=['file']
+        ),
         responses={
             201: StudentTimelineAttachmentSerializer,
             400: "خطأ في البيانات"
